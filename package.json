@@ -1,0 +1,16 @@
+{
+  "name": "lvl-up",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "app",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:app": "npm run dev --workspace app",
+    "build:app": "npm run build --workspace app",
+    "test:rules-engine": "npm run test --workspace rules-engine",
+    "test:app": "npm run test --workspace app",
+    "typecheck": "npm run typecheck --workspace rules-engine && npm run typecheck --workspace api-client"
+  }
+}

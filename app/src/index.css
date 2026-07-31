@@ -1,0 +1,2269 @@
+:root {
+  color-scheme: light;
+
+  /* Paleta — cálida tipo Stardew Valley, con --color-accent-gold/--color-danger
+     reservados para los momentos de contraste fuerte tipo Zelda (HP bajo,
+     Boss, logro). --color-bg-dark existe ya para el futuro modo oscuro, pero
+     no se usa todavía en ningún selector. */
+  --color-bg: #F5EDE1;
+  --color-bg-dark: #3A2E27;
+  --color-surface: #FFF8ED;
+  --color-border: #C9A876;
+  --color-text: #3A2E27;
+  --color-text-secondary: #8A7863;
+  --color-accent: #6B8F5C;
+  --color-accent-gold: #D4A017;
+  --color-danger: #B54834;
+
+  /* Solo para la barra de XP del panel de estado (Dashboard): tono azul fijo, independiente del
+     nivel de HP/dorado de logro, para que XP no se confunda con ninguno de los dos. */
+  --color-xp: #4A7FA6;
+
+  /* Solo para rareza de objetos (Mochila): común y legendaria reutilizan
+     --color-text-secondary/--color-accent-gold ya existentes, rara y épica
+     necesitan estos dos nuevos. Ver RARITY_COLORS en types/database.ts. */
+  --color-rarity-rare: #5B8AA6;
+  --color-rarity-epic: #8A5B9E;
+
+  /* Solo para la escala de dificultad de Misiones: trivial/fácil/media/épica reutilizan
+     --color-text-secondary/--color-accent/--color-accent-gold/--color-danger ya existentes;
+     únicamente "difícil" (y su equivalente de Boss, "importante") necesita este tono
+     intermedio entre el dorado y el terracota. Ver DIFFICULTY_COLORS en types/database.ts. */
+  --color-difficulty-hard: #C97A2E;
+
+  /* Identidad visual por atributo (zona de la tarjeta de misión + selector del formulario): los 6
+     tienen ahora su propio tono dedicado (ya no reutilizan --color-accent/--color-rarity-epic/
+     --color-accent-gold como en la iteración anterior, para que ningún atributo comparta color
+     literal con otro elemento de la UI). Ver ATTRIBUTE_COLORS en types/database.ts. */
+  --color-attr-vitality: #C97B6B;
+  --color-attr-intellect: #7A9BAE;
+  --color-attr-discipline: #7D7A8A;
+  --color-attr-relations: #C99AA5;
+  --color-attr-adventure: #8A9B6E;
+  --color-attr-fortune: #C9A860;
+
+  /* Sombra "escalonada" (sin difuminar) de los botones Completar/Eliminar de la tarjeta de misión:
+     tono más oscuro del mismo verde/terracota, no un rgba genérico, para que se lea como el canto
+     inferior del propio botón. Solo se usan ahí (ver .mission-card__actions), no en los botones
+     globales ya aprobados de Mercado/Mochila. */
+  --color-accent-shadow: #4F6B45;
+  --color-danger-shadow: #883627;
+
+  /* Tipografía: Silkscreen (pixel) para títulos, Nunito (redonda, cálida)
+     para cuerpo/listas. Silkscreen se eligió sobre Press Start 2P porque
+     mantiene sus tildes y la ñ legibles a los tamaños de h2/h3 que usa la
+     app (p.ej. "Misión", "Atención"), donde Press Start 2P tiende a
+     apelmazar los diacríticos. */
+  --font-title: 'Silkscreen', 'Courier New', monospace;
+  --font-body: 'Nunito', system-ui, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.25rem;
+
+  font: var(--text-base) / 1.5 var(--font-body);
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  text-align: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-title);
+  color: var(--color-text);
+  line-height: 1.3;
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+}
+
+h2 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+h3 {
+  font-size: var(--text-lg);
+  font-weight: 400;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  font-family: var(--font-body);
+  padding: 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+button {
+  font: inherit;
+  font-family: var(--font-body);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+/* ---- Componentes base (ver /src/components/ui) ---- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+
+.card--highlighted {
+  border: 2px solid var(--color-accent-gold);
+  box-shadow: 0 0 0 1px rgba(212, 160, 23, 0.25);
+}
+
+.card--dimmed {
+  opacity: 0.55;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease, background 0.15s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.btn--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn--secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-border);
+  color: var(--color-surface);
+}
+
+.btn--danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-surface);
+}
+
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.dashboard-header__logout {
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  font-size: var(--text-xs);
+  margin-top: 0.15rem;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--color-border);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: 1;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.badge--neutral {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.badge--success {
+  background: rgba(107, 143, 92, 0.15);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.badge--locked {
+  background: rgba(138, 120, 99, 0.12);
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.badge--gold {
+  background: rgba(212, 160, 23, 0.15);
+  border-color: var(--color-accent-gold);
+  color: #8a6a10;
+}
+
+.badge--danger {
+  background: rgba(181, 72, 52, 0.15);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* ---- Mochila: pestañas + lista compacta + panel de detalle fijo (patrón GBA/DS
+   real — ver src/components/ui/ItemRow.tsx e ItemDetailPanel.tsx). ---- */
+
+/* Contenedor de pantalla para el patrón "pestañas + lista + detalle" (Mercado y Mochila,
+   ver Dashboard.tsx). <main> es un flex container con align-items: center, así que sin esto
+   cada <section> se encoge al ancho de su contenido (shrink-to-fit) en vez de ocupar el ancho
+   fijo disponible — y ese ancho cambia con cada pestaña/selección porque el nombre de objeto,
+   el precio o la cantidad ("×4" vs "×7") tienen longitudes distintas. align-self: stretch fuerza
+   un ancho constante igual al de <main>, sin depender de qué contenido esté renderizado. */
+.item-browser {
+  align-self: stretch;
+  width: 100%;
+}
+
+.tab-row {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+
+.tab-row .btn {
+  padding: 0.4rem 0.7rem;
+  min-height: 34px;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.item-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  font: inherit;
+  font-family: var(--font-title);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.item-list .item-row:last-child {
+  border-bottom: none;
+}
+
+.item-row:hover {
+  background: rgba(107, 143, 92, 0.1);
+}
+
+.item-row--selected {
+  background: rgba(107, 143, 92, 0.2);
+}
+
+.item-row:focus-visible {
+  outline: 2px solid var(--color-accent-gold);
+  outline-offset: -2px;
+}
+
+.item-row__cursor {
+  width: 0.85em;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.item-row__icon-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.item-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.item-row__icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Insignia discreta de "cuántas tienes ya" del Mercado: vive sobre el icono en vez de junto al
+   precio, para no competir con él en la misma zona de la fila (ver ItemRow.tsx, ownedCount). */
+.item-row__owned-badge {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  font-family: var(--font-body);
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 1.5px 3px;
+}
+
+.item-row__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.item-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-row__qty,
+.item-row__status,
+.item-row__price {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.item-row__status {
+  font-style: italic;
+}
+
+.item-row__price {
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Icono de moneda en línea junto a cantidades/precios; se escala con el font-size del contexto
+   en el que se use (HUD, fila de objeto, botón de compra, etc.). */
+.coin-icon {
+  width: 1.6em;
+  height: 1.6em;
+  object-fit: contain;
+  vertical-align: -0.4em;
+  flex-shrink: 0;
+}
+
+/* Utilidad estándar: oculta visualmente pero deja legible para lectores de pantalla
+   (usado por el "(tienes N)" del Mercado, que en pantalla vive como insignia aria-hidden). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.item-detail__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.item-detail__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.item-detail__icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.item-detail__name {
+  display: block;
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+}
+
+.item-detail__rarity {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.item-detail__description {
+  margin: 0 0 0.6rem;
+  font-size: var(--text-sm);
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+.item-detail__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* ---- Mercado: mismo patrón de la Mochila (pestañas + lista + panel de detalle), con dos
+   diferenciadores de personalidad: el cuadro de diálogo del mercader de abajo, y el acento dorado
+   en vez de verde musgo. .market-theme redefine --color-accent localmente para que Button/ItemRow
+   reutilizados (que ya usan esa variable) hereden el dorado sin duplicar sus reglas; item-row:hover
+   y item-row--selected usan rgb literal en vez de var(), así que se pisan aparte aquí. */
+.market-theme {
+  --color-accent: var(--color-accent-gold);
+}
+
+.market-theme .btn--primary {
+  color: var(--color-text);
+}
+
+.market-theme .item-row:hover {
+  background: rgba(212, 160, 23, 0.12);
+}
+
+.market-theme .item-row--selected {
+  background: rgba(212, 160, 23, 0.22);
+}
+
+/* Cuadro de diálogo de NPC de tienda (ver ui/MerchantDialogueBox.tsx): retrato + frase fija, con
+   una colita apuntando hacia la lista de objetos de debajo para leerse como "el mercader te habla
+   de lo que tiene en el mostrador". */
+.merchant-dialogue {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  position: relative;
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent-gold);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(212, 160, 23, 0.25);
+}
+
+.merchant-dialogue::after {
+  content: '';
+  position: absolute;
+  left: 1.4rem;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  background: var(--color-surface);
+  border-right: 2px solid var(--color-accent-gold);
+  border-bottom: 2px solid var(--color-accent-gold);
+  transform: rotate(45deg);
+}
+
+.merchant-dialogue__portrait {
+  width: 3rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-accent-gold);
+  flex-shrink: 0;
+}
+
+.merchant-dialogue__text {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-style: italic;
+  color: var(--color-text);
+}
+
+/* Aviso discreto de recompensas pendientes (mismo lenguaje de color que .badge--gold,
+   pero en bloque en vez de píldora para poder envolver una frase completa). */
+.pending-reward-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0 0 0.6rem;
+  font-size: var(--text-xs);
+  color: #8a6a10;
+  background: rgba(212, 160, 23, 0.15);
+  border: 1px solid var(--color-accent-gold);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+
+/* ---- Misiones: metáfora "diario/cuaderno de aventuras" (ver DesignSystemPreview.tsx
+   sección Misiones, y más adelante MissionList.tsx/MissionForm.tsx). Cada misión es una
+   entrada de diario con marcador lateral de dificultad (mismo mecanismo de color por
+   variable que RARITY_COLORS en Mochila, pero como franja en vez de punto porque la
+   entrada es un bloque, no una fila compacta de una línea). ---- */
+
+.mission-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 5px solid var(--difficulty-color, var(--color-border));
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  text-align: left;
+}
+
+.mission-entry--pending {
+  opacity: 0.55;
+}
+
+.mission-entry__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mission-entry__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.mission-entry__type-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.mission-entry__name {
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+}
+
+.mission-entry__description {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.mission-entry__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Insignia de dificultad: mismo mecanismo de color que la franja lateral, pero como
+   texto para no depender solo del color (accesibilidad) — ver DIFFICULTY_COLORS. */
+.difficulty-tag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--difficulty-color, var(--color-border));
+  color: var(--difficulty-color, var(--color-text));
+}
+
+.mission-entry__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.mission-entry__hint {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+/* Eliminar del Boss aún no vencido: acción secundaria de corrección de errores, no la acción
+   principal de la tarjeta (esa es "Ir a la batalla" cuando toca) — más pequeño que el .btn base. */
+.mission-entry__actions .btn--danger {
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  font-size: var(--text-xs);
+}
+
+/* "Página especial" del diario para las Batallas pendientes: mismo lenguaje dorado que
+   .merchant-dialogue/.card--highlighted, pero con más peso (borde más grueso + fondo con
+   ligero degradado) para que se lea como una sección aparte, no una tarjeta más. */
+.boss-battle-page {
+  margin: 0 0 1.5rem;
+  padding: 0.9rem 1rem 1rem;
+  background: linear-gradient(180deg, rgba(212, 160, 23, 0.12), rgba(212, 160, 23, 0.03));
+  border: 3px solid var(--color-accent-gold);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(212, 160, 23, 0.2);
+}
+
+.boss-battle-page__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+}
+
+.boss-battle-page__title-icon {
+  display: block;
+  width: 1.15rem;
+  height: 1.15rem;
+  object-fit: contain;
+}
+
+.boss-battle-page .mission-entry {
+  border-color: var(--color-accent-gold);
+}
+
+/* ---- Misiones (3ª iteración): tarjeta con identidad de atributo grande + dificultad en estrellas
+   destacadas + acciones siempre visibles (sin gesto de deslizar — se probó y se descartó; ver
+   MissionCard en DesignSystemPreview.tsx). Los Bosses conservan intacto el tratamiento de
+   .mission-entry/.boss-battle-page de la 1ª iteración. ---- */
+
+.mission-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 3px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  /* Sombra "escalonada" sólida (sin blur) para que la tarjeta se sienta elevada como una pieza de
+     videojuego, no la sombra difuminada de .card. */
+  box-shadow: 0 5px 0 rgba(58, 46, 39, 0.28);
+}
+
+.mission-card--pending {
+  opacity: 0.55;
+}
+
+/* Franja superior: degradado (blanco→negro translúcido superpuesto al color sólido del atributo,
+   para no necesitar un segundo tono por atributo) ocupando ~un tercio de la tarjeta, con el marco
+   hexagonal + icono grande de protagonista y el nombre/atributo al lado. */
+.mission-card__ribbon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1rem;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.22), rgba(0, 0, 0, 0.14)), var(--attr-color);
+}
+
+/* Insignia de tipo: en línea con el nombre (misma fila, alineada a su altura de texto) en vez de
+   position: absolute sobre la franja — con la medalla de atributo ocupando más alto que el bloque
+   de texto, un anclaje absoluto al borde superior de la franja quedaba por encima del título,
+   flotando sin relación visual con él. */
+.mission-card__type-badge {
+  flex-shrink: 0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--color-surface);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.mission-card__ribbon-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mission-card__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mission-card__name {
+  display: block;
+  min-width: 0;
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+  color: var(--attr-fg, var(--color-surface));
+}
+
+.mission-card__name--done {
+  text-decoration: line-through;
+}
+
+.mission-card__attr-label {
+  font-size: var(--text-sm);
+  color: var(--attr-fg, var(--color-surface));
+  opacity: 0.75;
+}
+
+/* Atributo secundario ("+ Intelecto"): mismo color que la etiqueta principal pero más pequeño y
+   más apagado, para que quede claro que es un dato secundario sin competir con el atributo
+   principal ni sobrecargar la franja. */
+.mission-card__attr-secondary {
+  font-size: var(--text-xs);
+  opacity: 0.7;
+}
+
+/* Medalla ilustrada del atributo, sin marco geométrico: cada una (ATTRIBUTE_ICONS) ya trae su
+   propio contorno grueso y silueta reconocible (corazón, libro, puño...) sobre fondo transparente,
+   así que forzarlas dentro de un hexágono uniforme (como antes) solo las apretaba o recortaba mal
+   según la silueta. object-fit: contain solo por seguridad — el lienzo ya es cuadrado 1:1. */
+.mission-card__attr-medal {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.mission-card__body {
+  padding: 0.8rem 0.9rem 0.9rem;
+  background: linear-gradient(160deg, var(--attr-tint), var(--color-surface) 65%);
+}
+
+.mission-card__description {
+  margin: 0 0 0.6rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Zona de estrellas: propio recuadro destacado (no texto perdido en la tarjeta), con la insignia
+   de vencimiento al lado cuando aplica. */
+.mission-card__stars-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(212, 160, 23, 0.1);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.mission-card__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mission-card__actions .btn {
+  flex: 1;
+}
+
+/* Efecto de relieve "pulsable" (videojuego): canto sólido de un tono más oscuro del mismo color,
+   no un box-shadow difuminado — solo aquí, no en los botones globales ya aprobados de Mercado/
+   Mochila. Al pulsar, el canto se reduce y .btn:active ya desplaza el botón 1px hacia abajo, así
+   que entre los dos el botón "se hunde" sobre su propio relieve. */
+.mission-card__actions .btn--primary {
+  box-shadow: 0 3px 0 var(--color-accent-shadow);
+}
+
+.mission-card__actions .btn--danger {
+  box-shadow: 0 3px 0 var(--color-danger-shadow);
+}
+
+.mission-card__actions .btn:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--color-accent-shadow);
+}
+
+.mission-card__actions .btn--danger:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--color-danger-shadow);
+}
+
+.mission-card__pending-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mission-card__countdown {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+/* ---- Atributos: tarjeta compacta con el mismo lenguaje que .mission-card (borde + degradado del
+   color de atributo), pero en formato fila — sin acciones ni descripción, solo icono + nombre/nivel
+   + barra de XP. Ver AttributeCard en ui/. ---- */
+.attribute-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  background: var(--color-surface);
+  border: 3px solid var(--attr-color);
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 4px 0 rgba(58, 46, 39, 0.15);
+}
+
+/* Sin marco/fondo de color: la medalla (ATTRIBUTE_ICONS) ya trae su propio contorno grueso y
+   silueta reconocible, un cuadro de color detrás solo la apretaba contra su propia forma. */
+.attribute-card__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+}
+
+.attribute-card__icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.attribute-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.attribute-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.attribute-card__label {
+  font-family: var(--font-title);
+  font-size: var(--text-base);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+}
+
+.attribute-card__level {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.attribute-card__xp {
+  display: block;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.attribute-card__max {
+  display: block;
+  text-align: right;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--attr-color);
+}
+
+/* Estrella SVG limpia (ver StarIcon en DesignSystemPreview.tsx) en vez del glyph de texto
+   "★"/"☆", que en algunas plataformas cae a la fuente de emoji a color. Dorada cuando está
+   rellena, solo contorno del color de borde cuando no. */
+/* Tamaño de estrella: buscado para que su altura no supere la de los chips de atributo/dificultad
+   (36px, ver .attribute-chip) en ningún contexto — antes las estrellas del selector rondaban los
+   48px de alto, casi el doble. */
+.star-icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.star-icon path {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.star-icon--filled path {
+  fill: var(--color-accent-gold);
+  stroke: var(--color-accent-gold);
+}
+
+.star-rating {
+  display: inline-flex;
+  gap: 0.15rem;
+  color: var(--color-accent-gold);
+  font-size: 1.1rem;
+}
+
+/* Selector de estrellas interactivo (formulario): igual lenguaje visual que star-rating, pero
+   cada estrella es su propio botón — tocar la 3ª estrella selecciona dificultad "Media". Altura
+   fija a 36px (min-height/min-width), igual que .attribute-chip, independiente del tamaño del
+   icono interior. */
+.star-picker {
+  display: inline-flex;
+  gap: 0.1rem;
+}
+
+.star-picker__star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  min-width: 36px;
+  border: none;
+  background: none;
+  padding: 0.2rem;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.star-picker__star .star-icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.star-picker__star:focus-visible {
+  outline: 2px solid var(--color-accent-gold);
+  outline-offset: 1px;
+}
+
+/* Selector de atributo principal del formulario: mismo mecanismo que difficulty-chip, pero
+   coloreado por --attr-color/--attr-fg (ver ATTRIBUTE_COLORS/ATTRIBUTE_RIBBON_TEXT) y con el
+   icono del atributo delante, para que se vea de un vistazo el tono que tendrá la tarjeta. */
+.attribute-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.attribute-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  min-height: 36px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 2px solid var(--attr-color, var(--color-border));
+  background: var(--color-surface);
+  color: var(--attr-color, var(--color-text));
+  cursor: pointer;
+}
+
+/* Medalla sin recorte circular (antes object-fit: cover + border-radius: 50% la cortaba en un
+   círculo, perdiendo la silueta propia de cada atributo): se muestra entera, a un tamaño algo
+   mayor para que siga siendo reconocible en el chip. */
+.attribute-chip__icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.attribute-chip:focus-visible {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+.attribute-chip--selected {
+  background: var(--attr-color, var(--color-accent));
+  color: var(--attr-fg, var(--color-surface));
+}
+
+/* Atributo secundario: el chip del atributo ya elegido como principal queda deshabilitado (no
+   oculto, para que la fila no salte de tamaño cada vez que cambia el principal) — no pueden
+   coincidir. */
+.attribute-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Selector de personaje jugable (chico/chica): dos ilustraciones grandes lado a lado, tocar una
+   la elige. Mismo ancho que el resto de overlays (.overlay-section ya estira el <section> padre). */
+.character-select__title {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+  text-align: center;
+}
+
+.character-select__hint {
+  margin: 0 0 1rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.character-select__error {
+  margin: 0 0 1rem;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  text-align: center;
+}
+
+.character-select__options {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.character-select__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  max-width: 200px;
+  padding: 0.75rem;
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.character-select__option:hover:not(:disabled) {
+  border-color: var(--color-accent-gold);
+}
+
+.character-select__option:focus-visible {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+.character-select__option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.character-select__image {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.character-select__label {
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+/* Campos de texto/fecha del formulario (Nombre, Descripción, Fecha, Hora): mismo --color-border
+   que el resto de la tarjeta rediseñada pero más grueso, para que no desentonen junto a los chips
+   y botones ya rediseñados. Los inputs nativos de fecha/hora no cambian de comportamiento, solo
+   de estilo. */
+.field-label {
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+}
+
+.field-input {
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  background: var(--color-surface);
+}
+
+.field-input:focus-visible {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 1px;
+}
+
+/* Selector de dificultad del formulario: chips coloreados por --difficulty-color en vez de
+   <select> plano, para que la dificultad elegida se vea de un vistazo (mismos colores que
+   .difficulty-tag de la lista). */
+.difficulty-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.difficulty-chip {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  min-height: 36px;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 2px solid var(--difficulty-color, var(--color-border));
+  background: var(--color-surface);
+  color: var(--difficulty-color, var(--color-text));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.difficulty-chip:focus-visible {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+.difficulty-chip--selected {
+  background: var(--difficulty-color, var(--color-accent));
+  color: var(--color-surface);
+}
+
+/* ---- Cabecera del Dashboard (Opción A): panel de estado + navegación principal de 4 pestañas
+   + accesos secundarios, sustituyendo los <p> sueltos y los 4 botones planos originales. ---- */
+
+.status-panel {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.status-panel__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.status-panel__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.status-panel__medal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-accent-gold);
+  border: 2px solid var(--color-text);
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+  color: var(--color-text);
+}
+
+.status-panel__title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.status-panel__level {
+  font-family: var(--font-title);
+  font-size: var(--text-base);
+}
+
+.status-panel__rank {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.status-panel__coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent-gold);
+  color: var(--color-text);
+}
+
+.status-panel__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-panel__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-panel__bar-label {
+  flex-shrink: 0;
+  width: 2.1rem;
+  font-family: var(--font-title);
+  font-size: var(--text-xs);
+}
+
+.status-panel__bar-track {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-panel__bar-value {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.status-panel__shield {
+  margin: 0.75rem 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.main-nav {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  margin-bottom: 0.6rem;
+}
+
+.main-nav__tab {
+  position: relative;
+  flex: 1;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 52px;
+  padding: 0.4rem 0.3rem;
+  border-radius: 10px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-title);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease, background 0.15s ease;
+}
+
+.main-nav__tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.main-nav__tab-icon-img {
+  display: block;
+  width: 2.3rem;
+  height: 2rem;
+  object-fit: cover;
+}
+
+.main-nav__tab--active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+  box-shadow: 0 3px 0 var(--color-accent-shadow);
+}
+
+.main-nav__tab--active:active {
+  box-shadow: 0 1px 0 var(--color-accent-shadow);
+  transform: translateY(1px);
+}
+
+.main-nav__tab:not(.main-nav__tab--active):hover {
+  background: var(--color-border);
+  color: var(--color-surface);
+}
+
+.main-nav__tab:focus-visible {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+.main-nav__badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  border: 2px solid var(--color-surface);
+  color: var(--color-surface);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+/* Grid 3x2 por defecto: con 6 enlaces, flex-wrap normal deja el último ("Personaje") suelto en
+   su propia línea en cuanto no caben los 6 en una fila (pantallas < 480px, el maxWidth del
+   <main> del Dashboard). El grid de 3 columnas reparte siempre 3+3, nunca un elemento huérfano.
+   A partir de 480px (donde el <main> ya no crece más) los 6 caben cómodos en una sola fila. */
+.secondary-links {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem 0.5rem;
+  width: 100%;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+@media (min-width: 480px) {
+  .secondary-links {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem 0.55rem;
+  }
+}
+
+.secondary-links__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: none;
+  background: none;
+  padding: 0.2rem 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.secondary-links__icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.secondary-links__link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.secondary-links__link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondary-links__link:focus-visible {
+  outline: 2px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+/* ---- Batalla contra Boss: "escenario de combate" con fondo oscuro (--color-bg-dark, sin uso
+   hasta ahora) y marco dorado grueso, deliberadamente distinto del resto de la app (pergamino
+   claro) — ver BossBattleScreen.tsx y BattleHex/PersonSilhouette/DefeatedFace en ui/. ---- */
+
+.boss-arena {
+  position: relative;
+  background: var(--color-bg-dark);
+  border: 4px solid var(--color-accent-gold);
+  border-radius: 20px;
+  padding: 1.5rem 1.25rem;
+  margin-bottom: 1.5rem;
+  color: var(--color-surface);
+  text-align: center;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.3), 0 14px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+/* Rótulo informativo, no debe competir con los botones Victoria (verde)/Derrota (terracota) ni
+   con el badge de nivel de amenaza (dorado) — por eso va en un tono neutro apagado, sin fondo de
+   color fuerte, en vez del rojo/terracota que llevaba antes. */
+.boss-arena__badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid var(--color-border);
+  color: var(--color-surface);
+  opacity: 0.85;
+}
+
+.boss-arena__combatants {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  margin: 0.4rem 0;
+}
+
+.boss-arena__side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Escenario de altura fija compartida por los dos lados: el hexágono del jugador (76px) y la
+   ilustración del Boss (132px, sin marco) se centran dentro de la misma altura de referencia, así
+   "TÚ"/"BOSS" quedan a la misma altura y el VS del medio queda centrado entre ambos. */
+.boss-arena__side-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 132px;
+}
+
+.boss-arena__side-label {
+  font-family: var(--font-title);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.boss-arena__vs {
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+  color: var(--color-accent-gold);
+}
+
+/* Ilustración del Boss sin marco hexagonal: la propia imagen ya transmite carácter/nivel de
+   amenaza, así que se muestra a tamaño libre (mayor que el hexágono del jugador) en vez de recortarse. */
+.boss-arena__boss-image {
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Ilustración del jugador (backend/022_player_character.sql): mismo tratamiento sin marco hexagonal
+   que .boss-arena__boss-image, para que ambos lados queden visualmente al mismo nivel una vez que
+   el jugador también tiene una ilustración real (antes solo tenía PersonSilhouette, un icono
+   pequeño dentro del hexágono). Solo se usa cuando hay personaje elegido; si no, sigue el
+   PersonSilhouette/DefeatedFace de siempre dentro de BattleHex. */
+.boss-arena__player-image {
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.boss-arena__name {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+  color: var(--color-surface);
+}
+
+.boss-arena__difficulty-badge {
+  display: inline-flex;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-accent-gold);
+  color: var(--color-accent-gold);
+  background: transparent;
+}
+
+.boss-arena__attrs {
+  margin: 0;
+  font-size: var(--text-sm);
+  opacity: 0.75;
+}
+
+.boss-arena__description {
+  margin: 0;
+  max-width: 32rem;
+  font-size: var(--text-sm);
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.boss-arena__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-accent-gold);
+}
+
+.boss-arena__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.boss-arena__confirm-text {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.boss-arena__actions {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.boss-arena__actions .btn {
+  flex: 1;
+}
+
+.boss-arena__actions .btn--primary {
+  box-shadow: 0 3px 0 var(--color-accent-shadow);
+}
+
+.boss-arena__actions .btn--danger {
+  box-shadow: 0 3px 0 var(--color-danger-shadow);
+}
+
+.boss-arena__actions .btn:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--color-accent-shadow);
+}
+
+.boss-arena__actions .btn--danger:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--color-danger-shadow);
+}
+
+.boss-arena__cancel {
+  background: none;
+  border: none;
+  color: var(--color-surface);
+  opacity: 0.6;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.2rem;
+}
+
+/* Hexágono de combate (jugador o Boss) — ver BattleHex en ui/. */
+.battle-hex {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.3s ease;
+}
+
+.battle-hex__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.battle-hex__outer {
+  stroke: var(--color-text);
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+
+.battle-hex__inner {
+  fill: none;
+  stroke: var(--color-accent-gold);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.battle-hex__ring {
+  fill: none;
+  stroke: var(--color-accent-gold);
+  stroke-width: 4.5;
+  opacity: 1;
+}
+
+.battle-hex__ring--outer {
+  stroke-width: 3;
+  opacity: 0.7;
+}
+
+.battle-hex__icon {
+  position: relative;
+  font-size: 2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.battle-hex__person {
+  width: 2.1rem;
+  height: 2.1rem;
+}
+
+.battle-hex__defeated-face {
+  width: 2.3rem;
+  height: 1.3rem;
+}
+
+.battle-hex--defeated {
+  opacity: 0.4;
+}
+
+/* Sello de resultado, tipo estampado: rotación ligera + borde grueso del color del bando
+   ganador/perdedor (verde Victoria, terracota Derrota). */
+.boss-arena__stamp {
+  display: inline-flex;
+  font-family: var(--font-title);
+  font-size: var(--text-xl);
+  text-transform: uppercase;
+  padding: 0.6rem 1.6rem;
+  border: 4px solid currentColor;
+  border-radius: 12px;
+  transform: rotate(-6deg);
+  letter-spacing: 0.05em;
+}
+
+.boss-arena__stamp--victory {
+  color: var(--color-accent);
+}
+
+.boss-arena__stamp--defeat {
+  color: var(--color-danger);
+}
+
+.boss-arena__breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.boss-arena__breakdown-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  opacity: 0.85;
+}
+
+.boss-arena__breakdown-coins {
+  color: var(--color-accent-gold);
+  opacity: 1;
+  font-weight: 700;
+}
+
+/* ---- Rangos: "pase de batalla" vertical (ver RankPath en ui/) — camino conectado por una línea
+   de progreso en vez de tarjetas independientes, con el objeto de recompensa como protagonista
+   visual de cada nodo. El relleno del conector entre dos rangos se calcula por nodo (--fill-pct,
+   ver RankPath.tsx) a partir de los límites reales de RANKS/rankForLevel, no un valor fijo. ---- */
+
+.rank-path {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rank-path__item {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.rank-path__line-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 40px;
+}
+
+.rank-path__marker {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+  z-index: 1;
+}
+
+.rank-path__marker--reached {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.rank-path__connector {
+  position: relative;
+  width: 4px;
+  flex: 1;
+  min-height: 1.5rem;
+  margin: 0.15rem 0;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.rank-path__connector-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: var(--color-accent);
+  transition: height 0.2s ease;
+}
+
+.rank-path__content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+  padding-bottom: 1.35rem;
+  transition: opacity 0.15s ease;
+}
+
+.rank-path__content--locked {
+  opacity: 0.55;
+}
+
+.rank-path__frame {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.rank-path__frame-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 6px;
+}
+
+.rank-path__frame--reached {
+  border: 3px solid var(--color-accent);
+}
+
+.rank-path__frame--locked {
+  border: 3px dashed var(--color-border);
+}
+
+.rank-path__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.rank-path__title {
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+}
+
+.rank-path__reward {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ---- Cabecera de pantallas secundarias (Rangos/Logros/Historial): título centrado + flecha de
+   volver discreta en la esquina, en vez del botón grande de antes (ver ScreenHeader en ui/). La
+   tercera columna (sin contenido) existe solo para compensar el ancho de la flecha de la primera,
+   así el título queda centrado de verdad respecto al ancho completo, no solo respecto al hueco
+   que deja la flecha. ---- */
+
+/* <main> es un flex container con align-items: center (ver regla base más arriba), así que sin
+   esto la <section> de cada overlay se encoge al ancho de su contenido (shrink-to-fit, mismo
+   problema que .item-browser más abajo) — y ese ancho varía de una pantalla a otra según cuánto
+   texto tengan sus filas. .screen-header por sí solo no puede compensarlo: un width:100% en un
+   hijo no ensancha a un padre que todavía se está autodimensionando (para evitar la referencia
+   circular, ese porcentaje se trata como 'auto' al calcular el ancho del padre). align-self:
+   stretch sí funciona porque ignora el contenido y ocupa directamente el ancho completo de
+   <main> — así la flecha queda pegada al borde real de la pantalla y el título se centra
+   respecto a ese ancho completo, no al que le sobre a cada pantalla por casualidad. */
+.overlay-section {
+  align-self: stretch;
+  width: 100%;
+}
+
+.screen-header {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr 2.25rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.screen-header__title {
+  grid-column: 2;
+  margin: 0;
+  text-align: center;
+}
+
+.screen-header__back {
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.screen-header__back:hover {
+  background: rgba(58, 46, 39, 0.08);
+  color: var(--color-text);
+}
+
+.screen-header__back:focus-visible {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+/* ---- Logros (advancement de Minecraft): fila con fondo oscuro propio (--color-bg-dark), una
+   por logro, agrupadas por categoría — la única pantalla de la app que rompe el fondo pergamino
+   claro a propósito ("vitrina de trofeos"). Ver AchievementRow en ui/. ---- */
+
+.achievement-group {
+  margin-bottom: 1.5rem;
+}
+
+.achievement-group__label {
+  display: block;
+  margin: 0 0 0.5rem 0.25rem;
+  font-family: var(--font-title);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+}
+
+.achievement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.achievement-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--color-bg-dark);
+  border-radius: 10px;
+  padding: 0.6rem;
+  transition: opacity 0.15s ease;
+}
+
+.achievement-row--locked {
+  opacity: 0.4;
+}
+
+.achievement-row__frame {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid var(--color-border);
+}
+
+.achievement-row__frame--unlocked {
+  border-color: var(--color-accent-gold);
+}
+
+.achievement-row__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.achievement-row--locked .achievement-row__icon {
+  filter: grayscale(1);
+}
+
+.achievement-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.achievement-row__title {
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+  color: var(--color-surface);
+}
+
+.achievement-row__title--unlocked {
+  color: var(--color-accent-gold);
+}
+
+.achievement-row__description {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-surface);
+  opacity: 0.75;
+}
+
+.achievement-row__meta {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-accent-gold);
+  opacity: 0.85;
+}
+
+/* ---- Historial (diario de eventos agrupado por día). Ver HistoryEventRow en ui/. ---- */
+
+.history-day-group {
+  margin-bottom: 1rem;
+}
+
+.history-day-group__label {
+  display: block;
+  margin: 0 0 0.35rem 0.15rem;
+  font-family: var(--font-title);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.55rem 0.1rem;
+}
+
+.history-event:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.history-event__frame {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.history-event__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.history-event__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-event__title {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.history-event__delta {
+  margin: 0.15rem 0 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.history-event__note {
+  margin: 0.15rem 0 0;
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+/* ---- Auth (pantalla de bienvenida + Card con pestañas Iniciar sesión/Crear cuenta). ---- */
+
+.auth-brand {
+  margin-bottom: 1.5rem;
+}
+
+.auth-brand-title {
+  margin: 0;
+  letter-spacing: 0.2em;
+}
+
+.auth-brand-rule {
+  width: 64px;
+  height: 3px;
+  margin: 0.6rem auto;
+  background: var(--color-accent-gold);
+  border-radius: 2px;
+}
+
+.auth-brand-subtitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: left;
+}
+
+/* A diferencia de .tab-row (categorías de Mochila/Mercado, que pueden desbordar y hacer
+   scroll), las dos pestañas de Auth siempre son solo 2 y deben repartirse el ancho completo
+   de la Card, como en el mockup aprobado. */
+.auth-tabs .btn {
+  flex: 1;
+  flex-shrink: 1;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.auth-message {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.auth-message--error {
+  color: var(--color-danger);
+}
+
+.auth-message--info {
+  color: var(--color-accent);
+}
+
+/* ---- Tutorial: cabecera título+"Saltar" / barra de progreso de los 12 pasos / cuadro de
+   diálogo del mentor / vista previa en vivo / navegación inferior. Ver TutorialOverlay.tsx y
+   ui/MentorDialogueBox.tsx. ---- */
+.tutorial-overlay__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.tutorial-overlay__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+  letter-spacing: 0.05em;
+}
+
+.tutorial-overlay__skip {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tutorial-overlay__skip:hover {
+  color: var(--color-text);
+}
+
+.tutorial-overlay__skip:focus-visible {
+  outline: 2px solid var(--color-accent-gold);
+  outline-offset: 2px;
+}
+
+.tutorial-overlay__progress {
+  margin-bottom: 1.25rem;
+}
+
+.tutorial-overlay__step-title {
+  margin: 0 0 0.5rem;
+}
+
+/* Mismo patrón que .merchant-dialogue (retrato + colita), pero en verde musgo en vez de dorado
+   para no leerse como "el mercader te habla" — ver ui/MentorDialogueBox.tsx. */
+.mentor-dialogue {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  position: relative;
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(107, 143, 92, 0.25);
+}
+
+.mentor-dialogue::after {
+  content: '';
+  position: absolute;
+  left: 1.4rem;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  background: var(--color-surface);
+  border-right: 2px solid var(--color-accent);
+  border-bottom: 2px solid var(--color-accent);
+  transform: rotate(45deg);
+}
+
+.mentor-dialogue__portrait {
+  width: 3rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-accent);
+  flex-shrink: 0;
+}
+
+.mentor-dialogue__text {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.mentor-dialogue__text p {
+  margin: 0;
+}
+
+.mentor-dialogue__text p + p {
+  margin-top: 0.5rem;
+}
+
+.tutorial-overlay__widget {
+  margin-bottom: 1.5rem;
+}
+
+.tutorial-overlay__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tutorial-overlay__step-indicator {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
