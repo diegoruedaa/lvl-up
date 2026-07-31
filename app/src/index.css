@@ -93,6 +93,15 @@ main {
   max-width: 480px;
 }
 
+/* Dashboard real (header + tarjeta de nivel/XP/HP + nav, ver Dashboard.tsx): a diferencia de
+   AuthScreen/estados de carga, aquí el bloque superior debe quedar siempre anclado arriba y solo
+   el contenido de la pantalla activa (Misiones/Batallas/Mercado/Mochila) debe ocupar el resto del
+   alto disponible, en vez de que <main> centre verticalmente todo el bloque cuando hay poco
+   contenido (p. ej. Batallas sin pendientes o Mochila vacía). */
+.dashboard-shell {
+  justify-content: flex-start;
+}
+
 /* ---- Modo escritorio (>= 768px): SOLO aditivo, nada de lo de arriba se toca ni se sobreescribe
    por debajo de este ancho. ---- */
 @media (min-width: 768px) {

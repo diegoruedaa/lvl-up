@@ -747,7 +747,7 @@ export function Dashboard({ userId }: DashboardProps) {
   ).length
 
   return (
-    <main className="app-shell" style={{ width: '100%', textAlign: 'left' }}>
+    <main className="app-shell dashboard-shell" style={{ width: '100%', textAlign: 'left' }}>
       <div
         style={{
           display: 'flex',
