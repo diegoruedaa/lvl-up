@@ -2143,8 +2143,9 @@ button {
 }
 
 .history-event__icon {
-  font-size: 1rem;
-  line-height: 1;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .history-event__body {

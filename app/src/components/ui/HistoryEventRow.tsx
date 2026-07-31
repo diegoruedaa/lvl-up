@@ -17,9 +17,7 @@ export function HistoryEventRow({ icon, color, title, delta, deltaColor, notes }
   return (
     <li className="history-event">
       <span className="history-event__frame" style={{ borderColor: color }}>
-        <span className="history-event__icon" aria-hidden="true">
-          {icon}
-        </span>
+        <img className="history-event__icon" src={icon} alt="" aria-hidden="true" />
       </span>
       <div className="history-event__body">
         <p className="history-event__title">{title}</p>

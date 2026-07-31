@@ -18,21 +18,23 @@ import type {
 } from '../types/database'
 import { localDateString } from './gameApi'
 
-/** Icono por event_type, solo para escanear la lista más rápido (documento 15.1: sigue siendo una sección secundaria, sin pretensiones visuales). */
+/** Ilustración por event_type (public/ilustraciones/), sustituye a los emoji de reserva
+ * originales. mission_evaded, item_purchased, achievement_unlocked, rank_changed y
+ * totem_activated reutilizan ilustraciones ya existentes de otras pantallas. */
 export const EVENT_ICONS: Record<HistoryEventRow['event_type'], string> = {
-  mission_completed: '✅',
-  mission_failed: '💥',
-  mission_deleted: '🗑️',
-  mission_evaded: '🪢',
-  boss_won: '⚔️',
-  boss_lost: '💀',
-  item_used: '🧪',
-  shield_activated: '🛡️',
-  item_purchased: '🛒',
-  achievement_unlocked: '🏅',
-  level_up: '⬆️',
-  rank_changed: '🏆',
-  totem_activated: '🗿',
+  mission_completed: '/ilustraciones/mission_completed.png',
+  mission_failed: '/ilustraciones/mission_failed.png',
+  mission_deleted: '/ilustraciones/mission_deleted.png',
+  mission_evaded: '/ilustraciones/cuerda_huida.png',
+  boss_won: '/ilustraciones/boss_won.png',
+  boss_lost: '/ilustraciones/boss_lost.png',
+  item_used: '/ilustraciones/item_used.png',
+  shield_activated: '/ilustraciones/shield_activated.png',
+  item_purchased: '/ilustraciones/mercado.png',
+  achievement_unlocked: '/ilustraciones/logros.png',
+  level_up: '/ilustraciones/level_up.png',
+  rank_changed: '/ilustraciones/rangos.png',
+  totem_activated: '/ilustraciones/totem_inmortalidad.png',
 }
 
 /** Color del marco del icono por event_type: verde (--color-accent) para completar/subir de
