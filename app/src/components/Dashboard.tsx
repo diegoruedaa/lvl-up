@@ -712,7 +712,7 @@ export function Dashboard({ userId }: DashboardProps) {
 
   if (loadState.state === 'loading') {
     return (
-      <main>
+      <main className="app-shell">
         <p>Cargando personaje...</p>
       </main>
     )
@@ -720,7 +720,7 @@ export function Dashboard({ userId }: DashboardProps) {
 
   if (loadState.state === 'error' || !gameState) {
     return (
-      <main>
+      <main className="app-shell">
         <p style={{ color: 'var(--color-danger)' }}>
           {loadState.state === 'error' ? loadState.message : 'Error desconocido cargando el personaje.'}
         </p>
@@ -747,7 +747,7 @@ export function Dashboard({ userId }: DashboardProps) {
   ).length
 
   return (
-    <main style={{ width: '100%', maxWidth: '480px', textAlign: 'left' }}>
+    <main className="app-shell" style={{ width: '100%', textAlign: 'left' }}>
       <div
         style={{
           display: 'flex',

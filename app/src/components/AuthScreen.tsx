@@ -46,7 +46,7 @@ export function AuthScreen() {
   }
 
   return (
-    <main>
+    <main className="app-shell">
       <div className="auth-brand">
         <h1 className="auth-brand-title">LVL UP</h1>
         <div className="auth-brand-rule" />

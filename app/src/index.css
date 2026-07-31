@@ -85,6 +85,74 @@ main {
   box-sizing: border-box;
 }
 
+/* Ancho de lectura del contenido principal (antes inline style en Dashboard.tsx: maxWidth
+   '480px'). Mismo valor siempre en móvil; en escritorio se amplía a un único ancho fijo (ver media
+   query de abajo) que comparten TODAS las pantallas por igual — Mochila/Mercado incluidas, sin
+   variante propia más ancha — para que nada destaque como una franja distinta de tamaño. */
+.app-shell {
+  max-width: 480px;
+}
+
+/* ---- Modo escritorio (>= 768px): SOLO aditivo, nada de lo de arriba se toca ni se sobreescribe
+   por debajo de este ancho. ---- */
+@media (min-width: 768px) {
+  /* Fondo decorativo alrededor del contenido: degradado cálido con la paleta ya definida
+     (--color-bg → --color-border, con un resplandor dorado sutil arriba), para que la columna
+     central no quede flotando en blanco en pantallas grandes. */
+  body {
+    background:
+      radial-gradient(ellipse 1100px 700px at 50% -8%, rgba(212, 160, 23, 0.14), transparent 60%),
+      linear-gradient(165deg, var(--color-bg) 0%, #ECDAB9 45%, var(--color-border) 160%);
+    background-attachment: fixed;
+  }
+
+  /* El contenido pasa a leerse como un panel/pergamino elevado sobre el fondo decorativo, en vez
+     de ocupar toda la altura del viewport como en móvil. Único ancho para todas las pantallas
+     (mismo criterio que móvil: un ancho predeterminado al que todo se ajusta, ver .app-shell). */
+  main {
+    min-height: auto;
+    margin: 3rem auto;
+    padding: 2rem 2.25rem 2.5rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 22px;
+    box-shadow: 0 3px 0 var(--color-border), 0 22px 48px rgba(58, 46, 39, 0.3);
+  }
+
+  .app-shell {
+    max-width: 960px;
+  }
+
+  /* Rejilla de 2-3 columnas reutilizando el mismo ItemRow/item-list de siempre (patrón GBA/DS):
+     solo cambia el contenedor de flex-column a grid, ver comentario de .item-browser más arriba
+     en el archivo. Escopado a .item-browser para no afectar el item-list de la vista previa del
+     Tutorial (TutorialOverlay.tsx) ni de /design-system, que deben seguir viéndose como en móvil.
+     auto-fit (no auto-fill) para que una categoría con pocos objetos reparta el ancho disponible
+     entre ellos en vez de dejarlos apretados a la izquierda con una columna vacía al lado.
+     minmax a 240px: da 2 columnas justo al cruzar los 768px y sube a 3 según crece el ancho
+     disponible (hasta los 960px de .app-shell), sin pasar nunca de 3. */
+  .item-browser .item-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.6rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /* Cada fila pasa a ser su propia "tarjeta" dentro de la rejilla (antes el borde vivía en el
+     contenedor de la lista + un border-bottom entre filas, que no tiene sentido en una rejilla de
+     2D). ItemRow.tsx no se toca: es la misma fila de siempre, solo con su propio marco aquí. */
+  .item-browser .item-list .item-row {
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+  }
+
+  .item-browser .item-list .item-row:last-child {
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
 h1,
 h2,
 h3 {
