@@ -67,6 +67,24 @@ export interface XpApplicationResult {
   xpOverflowLost: number
 }
 
+/**
+ * Un "ding" de nivel dentro de una LevelUpSequence: el estado de la barra de
+ * `level` justo antes de completarse (probablemente 0, o lo que sobró del
+ * ding anterior) y cuánta XP hacía falta para completarla.
+ */
+export interface LevelUpStep {
+  level: number
+  xpRequired: number
+  startXp: number
+}
+
+/** Secuencia de dings derivada de simulateGeneralLevelUpSequence, para animar una subida de nivel paso a paso en vez de saltar directo al resultado final. */
+export interface LevelUpSequence {
+  steps: LevelUpStep[]
+  finalLevel: number
+  finalXp: number
+}
+
 export interface MissionOutcomeInput {
   difficulty: Difficulty
   primaryAttribute: Attribute

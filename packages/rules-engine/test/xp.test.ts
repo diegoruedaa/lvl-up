@@ -5,6 +5,7 @@ import {
   applyAttributeXp,
   applyGeneralXp,
   attributeXpRequiredForLevel,
+  simulateGeneralLevelUpSequence,
   xpForMissionCompletion,
   xpRequiredForLevel,
 } from '../src/xp.js'
@@ -73,6 +74,48 @@ describe('applyGeneralXp', () => {
   it('ya en nivel 100, cualquier XP se pierde sin cambiar nada', () => {
     const result = applyGeneralXp({ level: 100, currentXp: 0 }, 500)
     expect(result).toEqual({ level: 100, currentXp: 0, levelsGained: 0, xpOverflowLost: 500 })
+  })
+})
+
+describe('simulateGeneralLevelUpSequence', () => {
+  it('coincide con applyGeneralXp: sube exactamente 1 nivel con la XP justa', () => {
+    const result = simulateGeneralLevelUpSequence({ level: 1, currentXp: 0 }, 60)
+    expect(result.finalLevel).toBe(2)
+    expect(result.finalXp).toBe(0)
+    expect(result.steps).toEqual([{ level: 1, xpRequired: 60, startXp: 0 }])
+  })
+
+  it('un solo ding con XP de sobra (no sube 2 niveles): el resto queda en la barra final', () => {
+    const result = simulateGeneralLevelUpSequence({ level: 1, currentXp: 40 }, 30)
+    // 40+30=70 >= 60 (nivel 1->2), quedan 10 < 70 (nivel 2->3)
+    expect(result.finalLevel).toBe(2)
+    expect(result.finalXp).toBe(10)
+    expect(result.steps).toEqual([{ level: 1, xpRequired: 60, startXp: 40 }])
+  })
+
+  it('coincide con applyGeneralXp: sube varios niveles de golpe con XP grande (Boss legendario, 500 XP)', () => {
+    const applied = applyGeneralXp({ level: 1, currentXp: 0 }, 500)
+    const result = simulateGeneralLevelUpSequence({ level: 1, currentXp: 0 }, 500)
+    expect(result.finalLevel).toBe(applied.level)
+    expect(result.finalXp).toBe(applied.currentXp)
+    expect(result.steps).toHaveLength(applied.levelsGained)
+    expect(result.steps.map((s) => s.level)).toEqual([1, 2, 3, 4, 5])
+    expect(result.steps.every((s) => s.startXp === 0)).toBe(true)
+  })
+
+  it('coincide con applyGeneralXp al tocar el tope de nivel (100) y descartar el sobrante', () => {
+    const applied = applyGeneralXp({ level: 99, currentXp: 0 }, 2000)
+    const result = simulateGeneralLevelUpSequence({ level: 99, currentXp: 0 }, 2000)
+    expect(result.finalLevel).toBe(applied.level)
+    expect(result.finalXp).toBe(applied.currentXp)
+    expect(result.steps).toEqual([{ level: 99, xpRequired: 1040, startXp: 0 }])
+  })
+
+  it('sin XP suficiente para subir de nivel, no hay pasos y la barra final refleja la XP acumulada', () => {
+    const result = simulateGeneralLevelUpSequence({ level: 3, currentXp: 10 }, 5)
+    expect(result.steps).toEqual([])
+    expect(result.finalLevel).toBe(3)
+    expect(result.finalXp).toBe(15)
   })
 })
 

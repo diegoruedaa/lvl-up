@@ -6,6 +6,13 @@ interface RankPathProps {
   level: number
 }
 
+/** Ilustración propia para los rangos sin objeto de recompensa (Novato, Inmortal), en sustitución
+ * del 🏆 de reserva. */
+const RANK_FALLBACK_ICONS: Record<string, string> = {
+  Novato: '/ilustraciones/novato.png',
+  Inmortal: '/ilustraciones/inmortal.png',
+}
+
 /** Fracción (0–1) del tramo [fromLevel, toLevel) ya recorrida por `level`, para el relleno
  * parcial del conector entre dos rangos consecutivos — usa los límites reales de RANKS, no un
  * valor inventado. */
@@ -27,7 +34,7 @@ export function RankPath({ level }: RankPathProps) {
       {RANKS.map((rank, index) => {
         const unlocked = level >= rank.minLevel
         const rewardItemId = RANK_REWARDS[rank.name] as ItemId | null
-        const iconSrc = rewardItemId ? ITEM_ICONS[rewardItemId] : undefined
+        const iconSrc = rewardItemId ? ITEM_ICONS[rewardItemId] : RANK_FALLBACK_ICONS[rank.name]
         const rewardLabel = rewardItemId ? ITEM_CATALOG[rewardItemId].displayName : 'Sin recompensa'
         const nextRank = RANKS[index + 1]
         const fillFraction = nextRank ? segmentFillFraction(level, rank.minLevel, nextRank.minLevel) : 0

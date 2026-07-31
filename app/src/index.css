@@ -2340,6 +2340,197 @@ button {
   gap: 0.75rem;
 }
 
+/* Overlay de subida de nivel a pantalla completa (LevelUpOverlay): a diferencia de las demás
+   "*-overlay" del proyecto (que sustituyen el contenido de <main>), este sí es un overlay real
+   fixed + backdrop, porque debe bloquear toda interacción mientras dura la animación y evitar que
+   el HUD de fondo (Dashboard) se vea ya actualizado al nuevo nivel. */
+.level-up-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  background: rgba(58, 46, 39, 0.86);
+  animation: level-up-backdrop-in 0.35s ease-out;
+}
+
+@keyframes level-up-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.level-up-overlay__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 2.5rem;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent-gold);
+  border-radius: 16px;
+  box-shadow: 0 0 40px rgba(212, 160, 23, 0.35);
+  min-width: 280px;
+  animation: level-up-panel-in 0.4s ease-out;
+}
+
+@keyframes level-up-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.level-up-overlay__title {
+  font-family: var(--font-title);
+  font-size: var(--text-sm);
+  letter-spacing: 0.05em;
+  color: var(--color-accent-gold);
+}
+
+.level-up-overlay__level-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.level-up-overlay__level {
+  font-family: var(--font-title);
+  font-size: 3.5rem;
+  line-height: 1;
+  color: var(--color-text);
+  transition: transform 0.25s ease, color 0.25s ease;
+}
+
+.level-up-overlay__level--pop {
+  animation: level-up-level-pop 0.65s ease-out;
+  color: var(--color-accent-gold);
+}
+
+@keyframes level-up-level-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.45);
+    text-shadow: 0 0 24px var(--color-accent-gold);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: none;
+  }
+}
+
+.level-up-overlay__level-caption {
+  font-family: var(--font-title);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+}
+
+.level-up-overlay__bar-track {
+  width: 240px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.level-up-overlay__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: width 0.9s ease-out;
+}
+
+.level-up-overlay__bar-fill--instant {
+  transition: none;
+}
+
+.level-up-overlay__bar-fill--complete {
+  background: var(--color-accent-gold);
+  animation: level-up-bar-glow 0.6s ease-out;
+}
+
+@keyframes level-up-bar-glow {
+  0% {
+    box-shadow: 0 0 0 rgba(212, 160, 23, 0);
+  }
+  50% {
+    box-shadow: 0 0 18px 4px rgba(212, 160, 23, 0.85);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(212, 160, 23, 0);
+  }
+}
+
+.level-up-overlay__xp-label {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.level-up-overlay__rank-reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 2.5rem;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent-gold);
+  border-radius: 16px;
+  box-shadow: 0 0 40px rgba(212, 160, 23, 0.45);
+  animation: level-up-rank-in 0.5s ease-out;
+}
+
+@keyframes level-up-rank-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.level-up-overlay__rank-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.level-up-overlay__rank-icon-img {
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+}
+
+.level-up-overlay__rank-name {
+  font-family: var(--font-title);
+  font-size: var(--text-lg);
+  color: var(--color-accent-gold);
+  text-align: center;
+}
+
+.level-up-overlay__rank-reward {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
 .tutorial-overlay__step-indicator {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);

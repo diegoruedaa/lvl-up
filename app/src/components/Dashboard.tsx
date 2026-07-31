@@ -63,7 +63,7 @@ import { MissionForm } from './MissionForm'
 import { MissionList } from './MissionList'
 import { RanksScreen } from './RanksScreen'
 import { TutorialOverlay } from './TutorialOverlay'
-import { BossMissionCard, Button, Card, ProgressBar, ScreenHeader } from './ui'
+import { BossMissionCard, Button, Card, LevelUpOverlay, ProgressBar, ScreenHeader } from './ui'
 
 function isBossDifficulty(difficulty: Difficulty): difficulty is BossType {
   return (BOSS_DIFFICULTIES as Difficulty[]).includes(difficulty)
@@ -132,6 +132,18 @@ type ScreenTab = 'missions' | 'battles' | 'market' | 'inventory'
 /** Margen de "Deshacer" tras pulsar Completar, antes de aplicar la XP de verdad. */
 const UNDO_WINDOW_MS = 5000
 
+/** Un ítem en cola para LevelUpOverlay: los datos que necesita para animar la subida (nivel/XP tal
+ * como estaban justo antes de la acción) más el `finalize` que aplica el resultado real ya calculado
+ * (mismo setGameState/applyRankRewards de siempre) en cuanto termina la animación. */
+interface LevelUpQueueItem {
+  id: number
+  oldLevel: number
+  oldXp: number
+  xpGained: number
+  rankRewards: RankRewardOutcome[]
+  finalize: () => void
+}
+
 function upsertInventoryItem(prev: InventoryItemRow[], updated: InventoryItemRow): InventoryItemRow[] {
   const exists = prev.some((row) => row.id === updated.id)
   if (!exists) return [...prev, updated]
@@ -185,7 +197,18 @@ export function Dashboard({ userId }: DashboardProps) {
   const [pendingCompletions, setPendingCompletions] = useState<Record<string, number>>({})
   // Los timeout ids viven en un ref (no en estado) porque son solo para poder cancelarlos, no para renderizar.
   const pendingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // Subidas de nivel pendientes de animar en LevelUpOverlay: mientras haya una en cola, su
+  // `finalize` (el setGameState/applyRankRewards que antes se aplicaba al instante) queda retenido
+  // para que el HUD de fondo no muestre el nivel nuevo antes de que termine su animación. En cola
+  // (no un solo valor) porque dos misiones pueden resolverse casi a la vez y ambas subir de nivel.
+  const [levelUpQueue, setLevelUpQueue] = useState<LevelUpQueueItem[]>([])
+  const levelUpIdRef = useRef(0)
   const today = todayLocalDateString()
+
+  function enqueueLevelUp(item: Omit<LevelUpQueueItem, 'id'>) {
+    levelUpIdRef.current += 1
+    setLevelUpQueue((prev) => [...prev, { ...item, id: levelUpIdRef.current }])
+  }
 
   // Si el Dashboard se desmonta (p.ej. cierre de sesión) durante el margen, cancelamos las
   // confirmaciones pendientes en vez de dejarlas disparar sobre un componente ya desmontado.
@@ -407,13 +430,27 @@ export function Dashboard({ userId }: DashboardProps) {
           ? await completeTaskMission(mission, gameState.character, gameState.attributeProgress)
           : await completeRoutineOccurrence(mission, gameState.character, gameState.attributeProgress, today)
 
-      setGameState({
-        ...gameState,
-        character: outcome.character,
-        attributeProgress: outcome.attributeProgress,
-      })
+      // Nivel/XP tal como estaban justo antes de esta finalización: si esto sube de nivel, es lo
+      // que LevelUpOverlay necesita como punto de partida de la animación.
+      const oldCharacter = gameState.character
+      // Aplica al HUD el resultado ya calculado (setGameState/applyRankRewards/lista de misiones);
+      // se llama al instante si no hubo subida de nivel, o se retiene hasta que LevelUpOverlay
+      // termine su animación si sí la hubo (ver enqueueLevelUp más abajo).
+      const finalizeCompletion = () => {
+        setGameState({
+          ...gameState,
+          character: outcome.character,
+          attributeProgress: outcome.attributeProgress,
+        })
+        applyRankRewards(outcome.rankRewards)
+        if (mission.type === 'task') {
+          setMissions((prev) => prev.filter((m) => m.id !== mission.id))
+        } else {
+          setCompletedTodayMissionIds((prev) => new Set(prev).add(mission.id))
+        }
+      }
+
       const inventoryAfter = inventoryAfterRankRewards(inventory, outcome.rankRewards)
-      applyRankRewards(outcome.rankRewards)
       // achievementUnlocked ('mission_after_damage', Tanda 3) ya está en la
       // base de datos; se incorpora a la lista base (ver comentario en
       // handleCelestialHandActivated) en vez de con un setAchievementProgress
@@ -424,7 +461,8 @@ export function Dashboard({ userId }: DashboardProps) {
       // Completar una misión sube XP general, de atributo, y el contador
       // missions_completed_count: puede cruzar un umbral de nivel, rango,
       // atributo, número de misiones completadas, racha de constancia,
-      // racha sin fallos o fecha por atributo (Tanda 3).
+      // racha sin fallos o fecha por atributo (Tanda 3). Esto se evalúa ya mismo (no se retiene
+      // como el HUD) porque no es visible detrás del overlay de subida de nivel.
       await applyStateBasedAchievementUnlocks(
         gameState.adventureRun,
         outcome.character,
@@ -433,10 +471,16 @@ export function Dashboard({ userId }: DashboardProps) {
         achievementsBase,
       )
 
-      if (mission.type === 'task') {
-        setMissions((prev) => prev.filter((m) => m.id !== mission.id))
+      if (outcome.character.level > oldCharacter.level) {
+        enqueueLevelUp({
+          oldLevel: oldCharacter.level,
+          oldXp: oldCharacter.current_xp,
+          xpGained: outcome.xpGained.general,
+          rankRewards: outcome.rankRewards,
+          finalize: finalizeCompletion,
+        })
       } else {
-        setCompletedTodayMissionIds((prev) => new Set(prev).add(mission.id))
+        finalizeCompletion()
       }
     } catch (err) {
       setLoadState({ state: 'error', message: getErrorMessage(err) })
@@ -618,15 +662,22 @@ export function Dashboard({ userId }: DashboardProps) {
    */
   async function handleBossVictory(outcome: BossVictoryOutcome) {
     if (!gameState || !battlingMission) return
-    setGameState({
-      ...gameState,
-      character: outcome.character,
-      attributeProgress: outcome.attributeProgress,
-    })
+    const oldCharacter = gameState.character
+    const battlingMissionId = battlingMission.id
+    // Mismo patrón que finalizeCompletion en commitCompletion: aplica el resultado ya calculado al
+    // HUD, al instante si no hubo subida de nivel, o retenido hasta que LevelUpOverlay termine.
+    const finalizeVictory = () => {
+      setGameState({
+        ...gameState,
+        character: outcome.character,
+        attributeProgress: outcome.attributeProgress,
+      })
+      applyRankRewards(outcome.rankRewards)
+      setMissions((prev) => prev.filter((m) => m.id !== battlingMissionId))
+      if (outcome.celestialHandConsumed) setCelestialHandActive(false)
+    }
+
     const inventoryAfter = inventoryAfterRankRewards(inventory, outcome.rankRewards)
-    applyRankRewards(outcome.rankRewards)
-    setMissions((prev) => prev.filter((m) => m.id !== battlingMission.id))
-    if (outcome.celestialHandConsumed) setCelestialHandActive(false)
     // achievementUnlocked ('boss_no_celestial_hand') ya está en la base de
     // datos; se incorpora a la lista base (ver comentario en
     // handleCelestialHandActivated) en vez de con un setAchievementProgress
@@ -636,7 +687,8 @@ export function Dashboard({ userId }: DashboardProps) {
       : achievementProgress
     // Ganar un Boss concede XP general y de atributo, sube bosses_won_count
     // y coins_earned_total: puede cruzar un umbral de nivel, rango,
-    // atributo, Bosses vencidos o monedas ganadas en total.
+    // atributo, Bosses vencidos o monedas ganadas en total. Se evalúa ya mismo (no se retiene como
+    // el HUD) porque no es visible detrás del overlay de subida de nivel.
     await applyStateBasedAchievementUnlocks(
       gameState.adventureRun,
       outcome.character,
@@ -644,6 +696,18 @@ export function Dashboard({ userId }: DashboardProps) {
       inventoryAfter,
       achievementsBase,
     )
+
+    if (outcome.character.level > oldCharacter.level) {
+      enqueueLevelUp({
+        oldLevel: oldCharacter.level,
+        oldXp: oldCharacter.current_xp,
+        xpGained: outcome.xpGained.general,
+        rankRewards: outcome.rankRewards,
+        finalize: finalizeVictory,
+      })
+    } else {
+      finalizeVictory()
+    }
   }
 
   /** Misma razón que handleBossVictory: se llama tras "Confirmar", no tras "Continuar", y ya no limpia `battlingMission`. */
@@ -747,7 +811,21 @@ export function Dashboard({ userId }: DashboardProps) {
   ).length
 
   return (
-    <main className="app-shell dashboard-shell" style={{ width: '100%', textAlign: 'left' }}>
+    <>
+      {levelUpQueue.length > 0 && (
+        <LevelUpOverlay
+          key={levelUpQueue[0].id}
+          oldLevel={levelUpQueue[0].oldLevel}
+          oldXp={levelUpQueue[0].oldXp}
+          xpGained={levelUpQueue[0].xpGained}
+          rankRewards={levelUpQueue[0].rankRewards}
+          onComplete={() => {
+            levelUpQueue[0].finalize()
+            setLevelUpQueue((prev) => prev.slice(1))
+          }}
+        />
+      )}
+      <main className="app-shell dashboard-shell" style={{ width: '100%', textAlign: 'left' }}>
       <div
         style={{
           display: 'flex',
@@ -1067,5 +1145,6 @@ export function Dashboard({ userId }: DashboardProps) {
         </>
       )}
     </main>
+    </>
   )
 }
