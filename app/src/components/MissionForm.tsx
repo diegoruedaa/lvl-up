@@ -16,7 +16,7 @@ import {
   MISSION_TYPE_LABELS,
 } from '../types/database'
 import type { MissionRow, MissionType } from '../types/database'
-import { createMission } from '../lib/gameApi'
+import { createMission, todayLocalDateString } from '../lib/gameApi'
 import { getErrorMessage } from '../lib/errors'
 import { Button, StarPicker } from './ui'
 
@@ -29,6 +29,17 @@ function isBossDifficulty(difficulty: Difficulty): difficulty is BossType {
   return (BOSS_DIFFICULTIES as Difficulty[]).includes(difficulty)
 }
 
+/** Días ISO (1=Lunes..7=Domingo) en el orden en que se muestran los botones L M X J V S D. */
+const DAY_OPTIONS: { iso: number; label: string }[] = [
+  { iso: 1, label: 'L' },
+  { iso: 2, label: 'M' },
+  { iso: 3, label: 'X' },
+  { iso: 4, label: 'J' },
+  { iso: 5, label: 'V' },
+  { iso: 6, label: 'S' },
+  { iso: 7, label: 'D' },
+]
+
 export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
   const [type, setType] = useState<MissionType>('task')
   const [name, setName] = useState('')
@@ -38,8 +49,16 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
   const [secondaryAttribute, setSecondaryAttribute] = useState<Attribute | ''>('')
   const [dueDate, setDueDate] = useState('')
   const [dueTime, setDueTime] = useState('')
+  const [daysMode, setDaysMode] = useState<'all' | 'specific'>('all')
+  const [selectedDays, setSelectedDays] = useState<number[]>([])
+  const [hasEndDate, setHasEndDate] = useState(false)
+  const [endDate, setEndDate] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  function toggleDay(iso: number) {
+    setSelectedDays((prev) => (prev.includes(iso) ? prev.filter((d) => d !== iso) : [...prev, iso].sort((a, b) => a - b)))
+  }
 
   function handlePrimaryChange(next: Attribute) {
     setPrimaryAttribute(next)
@@ -70,6 +89,16 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
       return
     }
 
+    if (type === 'routine' && daysMode === 'specific' && selectedDays.length === 0) {
+      setError('Elige al menos un día para la rutina, o vuelve a "Todos los días".')
+      return
+    }
+
+    if (type === 'routine' && hasEndDate && !endDate) {
+      setError('Elige la fecha de fin, o desactiva esa opción.')
+      return
+    }
+
     setSubmitting(true)
     try {
       const mission = await createMission({
@@ -82,6 +111,8 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
         secondaryAttribute: secondaryAttribute === '' ? null : secondaryAttribute,
         dueDate: usesDueDate ? dueDate : null,
         dueTime: usesDueDate && dueTime !== '' ? dueTime : null,
+        daysOfWeek: type === 'routine' && daysMode === 'specific' ? selectedDays : null,
+        endDate: type === 'routine' && hasEndDate ? endDate : null,
       })
       onCreated(mission)
       setName('')
@@ -89,6 +120,10 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
       setDueDate('')
       setDueTime('')
       setSecondaryAttribute('')
+      setDaysMode('all')
+      setSelectedDays([])
+      setHasEndDate(false)
+      setEndDate('')
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -213,9 +248,74 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
       )}
 
       {type === 'routine' && (
-        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-          Frecuencia: todos los días.
-        </p>
+        <>
+          <label>
+            Frecuencia
+            <div className="tab-row" style={{ overflow: 'visible' }}>
+              <Button type="button" variant={daysMode === 'all' ? 'primary' : 'secondary'} onClick={() => setDaysMode('all')}>
+                Todos los días
+              </Button>
+              <Button
+                type="button"
+                variant={daysMode === 'specific' ? 'primary' : 'secondary'}
+                onClick={() => setDaysMode('specific')}
+              >
+                Días específicos
+              </Button>
+            </div>
+          </label>
+
+          {daysMode === 'specific' && (
+            <div className="difficulty-picker">
+              {DAY_OPTIONS.map(({ iso, label }) => (
+                <button
+                  key={iso}
+                  type="button"
+                  className={`difficulty-chip${selectedDays.includes(iso) ? ' difficulty-chip--selected' : ''}`}
+                  onClick={() => toggleDay(iso)}
+                  aria-pressed={selectedDays.includes(iso)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {hasEndDate ? (
+            <label>
+              <span className="field-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                Fecha de fin
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    setHasEndDate(false)
+                    setEndDate('')
+                  }}
+                >
+                  Quitar
+                </button>
+              </span>
+              <input
+                className="field-input"
+                type="date"
+                value={endDate}
+                min={todayLocalDateString()}
+                onChange={(e) => setEndDate(e.target.value)}
+                required
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              className="link-button"
+              style={{ alignSelf: 'flex-start' }}
+              onClick={() => setHasEndDate(true)}
+            >
+              + Añadir fecha de fin
+            </button>
+          )}
+        </>
       )}
 
       <Button type="submit" variant="primary" disabled={submitting}>

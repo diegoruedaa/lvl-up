@@ -6,6 +6,7 @@ import { getErrorMessage } from '../lib/errors'
 import {
   completeRoutineOccurrence,
   completeTaskMission,
+  computeRoutineStreak,
   daysSinceLastDamage,
   deleteMission,
   ensureActiveGameState,
@@ -129,6 +130,10 @@ type LoadState = { state: 'loading' } | { state: 'error'; message: string } | { 
 
 type ScreenTab = 'missions' | 'battles' | 'market' | 'inventory'
 
+/** Subpestañas de la pantalla Misiones: filtro puramente visual sobre `nonBattleMissions`, los
+ * Boss no participan (siguen solo en la pestaña Batallas). */
+type MissionsSubTab = 'all' | 'task' | 'routine'
+
 /** Margen de "Deshacer" tras pulsar Completar, antes de aplicar la XP de verdad. */
 const UNDO_WINDOW_MS = 5000
 
@@ -179,9 +184,15 @@ export function Dashboard({ userId }: DashboardProps) {
   const [pendingRewards, setPendingRewards] = useState<PendingRewardRow[]>([])
   const [achievementProgress, setAchievementProgress] = useState<AchievementProgressRow[]>([])
   const [completedTodayMissionIds, setCompletedTodayMissionIds] = useState<Set<string>>(new Set())
+  // Racha por rutina (mission_id -> días consecutivos sin fallar), calculada una vez por carga junto
+  // con el resto del estado — no se recalcula al completar/deshacer porque computeRoutineStreak
+  // siempre salta el día de hoy, así que completar la ocurrencia de hoy no cambia el valor hasta la
+  // próxima carga (mañana).
+  const [routineStreaks, setRoutineStreaks] = useState<Record<string, number>>({})
   const [deathNotice, setDeathNotice] = useState(false)
   const [busyMissionId, setBusyMissionId] = useState<string | null>(null)
   const [screen, setScreen] = useState<ScreenTab>('missions')
+  const [missionsSubTab, setMissionsSubTab] = useState<MissionsSubTab>('all')
   const [userProfile, setUserProfile] = useState<UserProfileRow | null>(null)
   const [activeOverlay, setActiveOverlay] = useState<
     'ranks' | 'achievements' | 'history' | 'tutorial' | 'attributes' | 'characterSelect' | null
@@ -254,6 +265,15 @@ export function Dashboard({ userId }: DashboardProps) {
         const completedIds = new Set(occurrences.filter((o) => o.status === 'completed').map((o) => o.mission_id))
         failedTodayMissionIds.forEach((id) => completedIds.add(id))
 
+        // Una consulta por rutina en paralelo (mismo patrón que ya usa esta carga para
+        // por-item/por-mission), no una sola consulta acotada por adventure_run: cada racha corta
+        // en su propio primer 'failed', así que no hay una forma de pedir "todas de golpe" sin
+        // sobrepedir para las rutinas más longevas.
+        const streakEntries = await Promise.all(
+          routineMissionIds.map(async (id) => [id, await computeRoutineStreak(id)] as const),
+        )
+        const finalRoutineStreaks = Object.fromEntries(streakEntries)
+
         const finalInventory = await fetchInventory(finalState.adventureRun.id)
         const finalActiveShield = await fetchActiveShield(finalState.adventureRun.id)
         const finalActiveCelestialHand = await fetchActiveCelestialHand(finalState.adventureRun.id)
@@ -288,6 +308,7 @@ export function Dashboard({ userId }: DashboardProps) {
         setPendingRewards(resolved.pendingRewards)
         setAchievementProgress(finalAchievements)
         setCompletedTodayMissionIds(completedIds)
+        setRoutineStreaks(finalRoutineStreaks)
         setUserProfile(profileResult.profile)
         justCreatedProfileRef.current = profileResult.justCreated
         // Selector de personaje y Tutorial se auto-lanzan como mucho una vez cada uno, nunca los
@@ -1043,12 +1064,37 @@ export function Dashboard({ userId }: DashboardProps) {
 
           {screen === 'missions' && (
             <>
-              <section style={{ marginBottom: '1.5rem' }}>
+              <section className="item-browser" style={{ marginBottom: '1.5rem' }}>
                 <h2>Misiones activas</h2>
+                <div className="tab-row" style={{ margin: '0 0 0.75rem' }}>
+                  <Button
+                    variant={missionsSubTab === 'all' ? 'primary' : 'secondary'}
+                    onClick={() => setMissionsSubTab('all')}
+                  >
+                    Todas
+                  </Button>
+                  <Button
+                    variant={missionsSubTab === 'task' ? 'primary' : 'secondary'}
+                    onClick={() => setMissionsSubTab('task')}
+                  >
+                    Tareas
+                  </Button>
+                  <Button
+                    variant={missionsSubTab === 'routine' ? 'primary' : 'secondary'}
+                    onClick={() => setMissionsSubTab('routine')}
+                  >
+                    Rutinas
+                  </Button>
+                </div>
                 <MissionList
-                  missions={nonBattleMissions}
+                  missions={
+                    missionsSubTab === 'all'
+                      ? nonBattleMissions
+                      : nonBattleMissions.filter((mission) => mission.type === missionsSubTab)
+                  }
                   today={today}
                   completedTodayMissionIds={completedTodayMissionIds}
+                  routineStreaks={routineStreaks}
                   busyMissionId={busyMissionId}
                   pendingCompletions={pendingCompletions}
                   onComplete={handleComplete}

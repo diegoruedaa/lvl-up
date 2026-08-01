@@ -8,7 +8,8 @@ import type { MissionOccurrenceRow, MissionRow } from '../src/types/database'
 // esas variables.
 vi.mock('../src/lib/supabase', () => ({ supabase: {} }))
 
-const { computeExpiredFailureEvents, isAdventureRunAlreadyEndedError } = await import('../src/lib/gameApi')
+const { computeExpiredFailureEvents, isAdventureRunAlreadyEndedError, isDayApplicable, routineStreakFromOccurrences } =
+  await import('../src/lib/gameApi')
 
 function makeTaskMission(
   id: string,
@@ -29,13 +30,21 @@ function makeTaskMission(
     due_date: dueDate,
     due_time: dueTime,
     recurrence_rule: null,
+    days_of_week: null,
+    end_date: null,
     status: 'active',
     created_at: createdAt.toISOString(),
     resolved_at: null,
   }
 }
 
-function makeRoutineMission(id: string, createdAt: Date, difficulty: Difficulty = 'easy'): MissionRow {
+function makeRoutineMission(
+  id: string,
+  createdAt: Date,
+  difficulty: Difficulty = 'easy',
+  daysOfWeek: number[] | null = null,
+  endDate: string | null = null,
+): MissionRow {
   return {
     id,
     adventure_run_id: 'run-1',
@@ -48,6 +57,8 @@ function makeRoutineMission(id: string, createdAt: Date, difficulty: Difficulty 
     due_date: null,
     due_time: null,
     recurrence_rule: { frequency: 'daily' },
+    days_of_week: daysOfWeek,
+    end_date: endDate,
     status: 'active',
     created_at: createdAt.toISOString(),
     resolved_at: null,
@@ -67,18 +78,24 @@ function makeBossMission(id: string, createdAt: Date, dueDate: string, difficult
     due_date: dueDate,
     due_time: null,
     recurrence_rule: null,
+    days_of_week: null,
+    end_date: null,
     status: 'active',
     created_at: createdAt.toISOString(),
     resolved_at: null,
   }
 }
 
-function makeOccurrence(missionId: string, occurrenceDate: string): MissionOccurrenceRow {
+function makeOccurrence(
+  missionId: string,
+  occurrenceDate: string,
+  status: MissionOccurrenceRow['status'] = 'completed',
+): MissionOccurrenceRow {
   return {
     id: `${missionId}-${occurrenceDate}`,
     mission_id: missionId,
     occurrence_date: occurrenceDate,
-    status: 'completed',
+    status,
     resolved_at: new Date().toISOString(),
   }
 }
@@ -161,6 +178,125 @@ describe('computeExpiredFailureEvents', () => {
 
     expect(events).toHaveLength(1)
     expect(events[0].mission.id).toBe('task-1')
+  })
+
+  it('una rutina con days_of_week solo genera evento los días marcados', () => {
+    const now = new Date(2026, 0, 10, 10, 0, 0)
+    // 2026-01-07 es miércoles, 08 jueves, 09 viernes: días_of_week = [1,3,5]
+    // (Lunes/Miércoles/Viernes) deja fuera el jueves.
+    const routine = makeRoutineMission('routine-1', new Date(2026, 0, 7, 9, 0, 0), 'easy', [1, 3, 5])
+
+    const events = computeExpiredFailureEvents([routine], [], now)
+
+    expect(events.map((e) => e.occurrenceDate)).toEqual(['2026-01-07', '2026-01-09'])
+  })
+
+  it('una rutina sin days_of_week (rutina ya existente antes de este campo) se comporta como "todos los días"', () => {
+    const now = new Date(2026, 0, 10, 10, 0, 0)
+    const routine = makeRoutineMission('routine-1', new Date(2026, 0, 7, 9, 0, 0), 'easy', null, null)
+
+    const events = computeExpiredFailureEvents([routine], [], now)
+
+    expect(events.map((e) => e.occurrenceDate)).toEqual(['2026-01-07', '2026-01-08', '2026-01-09'])
+  })
+
+  it('una rutina con end_date ya pasado deja de generar eventos a partir del día siguiente al cierre', () => {
+    const now = new Date(2026, 0, 10, 10, 0, 0)
+    // end_date inclusive: el día 7 (el propio end_date) todavía genera
+    // evento; el 8 y el 9 (posteriores al cierre) ya no.
+    const routine = makeRoutineMission('routine-1', new Date(2026, 0, 7, 9, 0, 0), 'easy', null, '2026-01-07')
+
+    const events = computeExpiredFailureEvents([routine], [], now)
+
+    expect(events.map((e) => e.occurrenceDate)).toEqual(['2026-01-07'])
+  })
+
+  it('una rutina con end_date hoy todavía genera evento para hoy si vence antes de `now`', () => {
+    const now = new Date(2026, 0, 10, 23, 59, 59, 999)
+    const routine = makeRoutineMission('routine-1', new Date(2026, 0, 10, 9, 0, 0), 'easy', null, '2026-01-10')
+
+    const events = computeExpiredFailureEvents([routine], [], now)
+
+    expect(events.map((e) => e.occurrenceDate)).toEqual(['2026-01-10'])
+  })
+})
+
+describe('isDayApplicable', () => {
+  it('con days_of_week null, cualquier día es aplicable', () => {
+    const routine = makeRoutineMission('routine-1', new Date(2026, 0, 1))
+    expect(isDayApplicable(routine, '2026-01-07')).toBe(true)
+  })
+
+  it('con days_of_week [1,3,5], solo lunes/miércoles/viernes son aplicables', () => {
+    const routine = makeRoutineMission('routine-1', new Date(2026, 0, 1), 'easy', [1, 3, 5])
+    expect(isDayApplicable(routine, '2026-01-07')).toBe(true) // miércoles
+    expect(isDayApplicable(routine, '2026-01-08')).toBe(false) // jueves
+  })
+
+  it('domingo se interpreta como día ISO 7, no 0', () => {
+    const routine = makeRoutineMission('routine-1', new Date(2026, 0, 1), 'easy', [7])
+    expect(isDayApplicable(routine, '2026-01-11')).toBe(true) // domingo
+    expect(isDayApplicable(routine, '2026-01-12')).toBe(false) // lunes
+  })
+})
+
+describe('routineStreakFromOccurrences', () => {
+  it('rutina recién creada sin ninguna ocurrencia: racha 0', () => {
+    expect(routineStreakFromOccurrences([], '2026-01-10')).toBe(0)
+  })
+
+  it('varios días completados seguidos suman la racha', () => {
+    const occurrences = [
+      makeOccurrence('r1', '2026-01-07'),
+      makeOccurrence('r1', '2026-01-08'),
+      makeOccurrence('r1', '2026-01-09'),
+    ]
+    expect(routineStreakFromOccurrences(occurrences, '2026-01-10')).toBe(3)
+  })
+
+  it('un fallo corta la racha en ese punto, sin contar los días anteriores', () => {
+    const occurrences = [
+      makeOccurrence('r1', '2026-01-06'),
+      makeOccurrence('r1', '2026-01-07'),
+      makeOccurrence('r1', '2026-01-08', 'failed'),
+      makeOccurrence('r1', '2026-01-09'),
+    ]
+    // 09 suma (1), 08 es el fallo que corta: 06 y 07 no cuentan aunque estén completados.
+    expect(routineStreakFromOccurrences(occurrences, '2026-01-10')).toBe(1)
+  })
+
+  it('un fallo el día más reciente deja la racha en 0', () => {
+    const occurrences = [makeOccurrence('r1', '2026-01-08'), makeOccurrence('r1', '2026-01-09', 'failed')]
+    expect(routineStreakFromOccurrences(occurrences, '2026-01-10')).toBe(0)
+  })
+
+  it('un día evitado con la Cuerda de Huida mantiene la racha viva, igual que un completado', () => {
+    const occurrences = [
+      makeOccurrence('r1', '2026-01-07'),
+      makeOccurrence('r1', '2026-01-08', 'evaded'),
+      makeOccurrence('r1', '2026-01-09'),
+    ]
+    expect(routineStreakFromOccurrences(occurrences, '2026-01-10')).toBe(3)
+  })
+
+  it('el día de hoy se salta: ni suma ni rompe la racha aunque tenga fila', () => {
+    const occurrences = [
+      makeOccurrence('r1', '2026-01-08'),
+      makeOccurrence('r1', '2026-01-09'),
+      makeOccurrence('r1', '2026-01-10', 'failed'),
+    ]
+    // Si "hoy" (10) contara, el 'failed' de hoy cortaría la racha a 0; al saltarse, sigue mirando
+    // hacia atrás y cuenta los dos días anteriores.
+    expect(routineStreakFromOccurrences(occurrences, '2026-01-10')).toBe(2)
+  })
+
+  it('no depende del orden de entrada: reordena por fecha antes de recorrer', () => {
+    const occurrences = [
+      makeOccurrence('r1', '2026-01-09'),
+      makeOccurrence('r1', '2026-01-07'),
+      makeOccurrence('r1', '2026-01-08'),
+    ]
+    expect(routineStreakFromOccurrences(occurrences, '2026-01-10')).toBe(3)
   })
 })
 

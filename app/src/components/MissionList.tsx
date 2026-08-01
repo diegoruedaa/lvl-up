@@ -17,6 +17,7 @@ import {
   dueUrgencyBadge,
 } from '../types/database'
 import type { MissionRow } from '../types/database'
+import { isDayApplicable } from '../lib/gameApi'
 import { BossMissionCard, MissionCard } from './ui'
 
 function isBossDifficulty(difficulty: Difficulty): difficulty is BossType {
@@ -33,6 +34,8 @@ interface MissionListProps {
   missions: MissionRow[]
   today: string
   completedTodayMissionIds: Set<string>
+  /** mission_id (solo rutinas) -> racha de días consecutivos sin fallar, ya calculada (Dashboard). */
+  routineStreaks: Record<string, number>
   busyMissionId: string | null
   /** Misión id -> instante (epoch ms) en el que expira su margen de deshacer. */
   pendingCompletions: Record<string, number>
@@ -67,15 +70,25 @@ export function MissionList({
   missions,
   today,
   completedTodayMissionIds,
+  routineStreaks,
   busyMissionId,
   pendingCompletions,
   onComplete,
   onUndo,
   onDelete,
 }: MissionListProps) {
-  const visible = missions.filter(
-    (mission) => mission.type === 'task' || !completedTodayMissionIds.has(mission.id),
-  )
+  const visible = missions.filter((mission) => {
+    if (mission.type === 'task') return true
+    if (completedTodayMissionIds.has(mission.id)) return false
+    if (mission.type !== 'routine') return true // boss
+
+    // Oculta hoy si el día no toca (reaparece el día que sí toque); oculta
+    // para siempre si la rutina ya cerró (end_date pasado) — dos motivos
+    // distintos de no-visibilidad, no intercambiables.
+    if (!isDayApplicable(mission, today)) return false
+    if (mission.end_date !== null && mission.end_date < today) return false
+    return true
+  })
 
   const sorted = [...visible].sort((a, b) => {
     const dueA = effectiveDueDate(a, today)
@@ -118,6 +131,7 @@ export function MissionList({
             key={mission.id}
             mission={mission}
             today={today}
+            streak={mission.type === 'routine' ? routineStreaks[mission.id] ?? 0 : undefined}
             isPending={isPending}
             pendingDeadline={pendingDeadline}
             busy={busyMissionId === mission.id}
@@ -136,6 +150,7 @@ export function MissionList({
 function MissionCardWithCountdown({
   mission,
   today,
+  streak,
   isPending,
   pendingDeadline,
   busy,
@@ -145,6 +160,8 @@ function MissionCardWithCountdown({
 }: {
   mission: MissionRow
   today: string
+  /** undefined para tareas (no aplica); número (posiblemente 0) para rutinas. */
+  streak: number | undefined
   isPending: boolean
   pendingDeadline: number | undefined
   busy: boolean
@@ -169,6 +186,7 @@ function MissionCardWithCountdown({
       starValue={DIFFICULTY_STAR_COUNT[mission.difficulty]}
       starLabel={`Dificultad: ${DIFFICULTY_LABELS[mission.difficulty]}`}
       urgency={urgency}
+      streak={streak}
       isPending={isPending}
       busy={busy}
       countdownSeconds={isPending ? countdownSeconds : undefined}

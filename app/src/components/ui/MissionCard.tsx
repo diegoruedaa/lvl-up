@@ -18,6 +18,9 @@ interface MissionCardProps {
   starValue: number
   starLabel: string
   urgency: { label: string; variant: BadgeVariant } | null
+  /** Racha de días consecutivos sin fallar (solo rutinas). undefined = no aplica (tareas); 0 = oculto
+   * a propósito (ver mission-card__badges más abajo), nunca se pinta "🔥 0". */
+  streak?: number
   isPending: boolean
   /** Verdadero mientras esta misión concreta tiene una petición en curso (completar/eliminar). */
   busy: boolean
@@ -48,6 +51,7 @@ export function MissionCard({
   starValue,
   starLabel,
   urgency,
+  streak,
   isPending,
   busy,
   countdownSeconds,
@@ -68,7 +72,14 @@ export function MissionCard({
         <span className="mission-card__ribbon-text">
           <span className="mission-card__title-row">
             <strong className={`mission-card__name${isPending ? ' mission-card__name--done' : ''}`}>{name}</strong>
-            <span className="mission-card__type-badge">{typeLabel}</span>
+            <span className="mission-card__badges">
+              {typeof streak === 'number' && streak >= 1 && (
+                <Badge variant="streak" icon={<img className="mission-card__streak-icon" src="/ilustraciones/racha.png" alt="" />}>
+                  {streak}
+                </Badge>
+              )}
+              <span className="mission-card__type-badge">{typeLabel}</span>
+            </span>
           </span>
           <span className="mission-card__attr-label">
             {attributeLabel}

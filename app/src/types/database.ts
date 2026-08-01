@@ -328,6 +328,10 @@ export interface MissionRow {
   due_date: string | null
   due_time: string | null
   recurrence_rule: { frequency: 'daily' } | null
+  /** Días ISO (1=Lunes..7=Domingo) en que la rutina genera ocurrencia. null = todos los días (default, y lo que valen automáticamente todas las rutinas creadas antes de este campo). Solo se usa si type = 'routine'. */
+  days_of_week: number[] | null
+  /** Último día (inclusive) en que la rutina genera/revisa ocurrencia. null = sin fecha de fin. Solo se usa si type = 'routine'. */
+  end_date: string | null
   status: MissionStatus
   created_at: string
   resolved_at: string | null

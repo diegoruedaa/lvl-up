@@ -355,6 +355,15 @@ button {
   color: var(--color-danger);
 }
 
+/* Racha de rutina: sobre la franja de color de atributo (mission-card__ribbon), no sobre el cuerpo
+   claro de la tarjeta — mismo tratamiento de overlay oscuro que mission-card__type-badge para
+   garantizar contraste con cualquier color de atributo. */
+.badge--streak {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: transparent;
+  color: var(--color-surface);
+}
+
 /* ---- Mochila: pestañas + lista compacta + panel de detalle fijo (patrón GBA/DS
    real — ver src/components/ui/ItemRow.tsx e ItemDetailPanel.tsx). ---- */
 
@@ -828,6 +837,19 @@ button {
    position: absolute sobre la franja — con la medalla de atributo ocupando más alto que el bloque
    de texto, un anclaje absoluto al borde superior de la franja quedaba por encima del título,
    flotando sin relación visual con él. */
+.mission-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.mission-card__streak-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
 .mission-card__type-badge {
   flex-shrink: 0;
   padding: 0.2rem 0.5rem;
@@ -1234,6 +1256,25 @@ button {
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   background: var(--color-surface);
+}
+
+/* Acción secundaria discreta dentro de un formulario (p. ej. "+ Añadir fecha de fin" /
+   "Quitar"): a diferencia de .btn, no compite visualmente con los chips ni con el botón
+   primario — es texto subrayado, no una superficie con borde. */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover,
+.link-button:focus-visible {
+  color: var(--color-accent);
 }
 
 .field-input:focus-visible {

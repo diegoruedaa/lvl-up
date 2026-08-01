@@ -180,6 +180,18 @@ function localDaysBetween(startDateStr: string, endDateStr: string): number {
   return localDateStringsBetween(startDateStr, endDateStr).length - 1
 }
 
+/** Día ISO de la semana (1=Lunes..7=Domingo) de una fecha local YYYY-MM-DD. */
+function isoWeekday(dateStr: string): number {
+  const jsDay = parseLocalDate(dateStr).getDay() // 0=domingo..6=sábado
+  return jsDay === 0 ? 7 : jsDay
+}
+
+/** true si una rutina genera/revisa ocurrencia el día dado. `days_of_week: null` = todos los días — incluye, sin distinción, tanto las rutinas creadas sin elegir días específicos como todas las creadas antes de que este campo existiera. */
+export function isDayApplicable(mission: MissionRow, dateStr: string): boolean {
+  if (mission.days_of_week === null) return true
+  return mission.days_of_week.includes(isoWeekday(dateStr))
+}
+
 /**
  * Constancia (streak_3..streak_365, Tanda 3, backend/018_achievement_streaks.sql):
  * próxima racha de días consecutivos con al menos un mission_completed de
@@ -500,6 +512,60 @@ export async function fetchOccurrencesForMissions(missionIds: string[]): Promise
   return data as MissionOccurrenceRow[]
 }
 
+/** Tope de filas a mirar hacia atrás en computeRoutineStreak (~13 meses de racha diaria): acota el
+ * caso patológico de una rutina de meses sin fallar nunca, sin necesidad de un contador redundante. */
+const ROUTINE_STREAK_LOOKBACK = 400
+
+/**
+ * Recorrido puro (sin I/O, como computeExpiredFailureEvents) del cálculo de
+ * racha: `occurrences` en cualquier orden, más reciente primero tras
+ * ordenar aquí, sumando 'completed'/'evaded' y cortando en el primer
+ * 'failed'. mission_occurrence solo tiene fila para días aplicables — los
+ * tres escritores (completeRoutineOccurrence, applyEscapeRopeToRoutine,
+ * processExpiredMissions) ya filtran por isDayApplicable antes de escribir —
+ * así que el orden de las filas ya es el de "días que tocaban" y no hace
+ * falta volver a consultar days_of_week aquí. El día de hoy se salta
+ * explícitamente por fecha (no por ausencia de fila): todavía no está
+ * decidido, así que ni suma ni rompe la racha.
+ */
+export function routineStreakFromOccurrences(
+  occurrences: Pick<MissionOccurrenceRow, 'occurrence_date' | 'status'>[],
+  today: string,
+): number {
+  const sorted = [...occurrences].sort((a, b) => b.occurrence_date.localeCompare(a.occurrence_date))
+
+  let streak = 0
+  for (const occurrence of sorted) {
+    if (occurrence.occurrence_date === today) continue
+    if (occurrence.status === 'completed' || occurrence.status === 'evaded') {
+      streak += 1
+      continue
+    }
+    break
+  }
+
+  return streak
+}
+
+/**
+ * Racha de días consecutivos sin fallar de una rutina (marcador de racha en
+ * Misiones): trae, ya ordenadas descendente y acotadas a
+ * ROUTINE_STREAK_LOOKBACK, las ocurrencias de esta misión, y delega el
+ * recorrido a routineStreakFromOccurrences.
+ */
+export async function computeRoutineStreak(missionId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('mission_occurrence')
+    .select('occurrence_date, status')
+    .eq('mission_id', missionId)
+    .order('occurrence_date', { ascending: false })
+    .limit(ROUTINE_STREAK_LOOKBACK)
+
+  if (error) throw error
+
+  return routineStreakFromOccurrences(data as Pick<MissionOccurrenceRow, 'occurrence_date' | 'status'>[], todayLocalDateString())
+}
+
 export interface CreateMissionInput {
   adventureRunId: string
   type: MissionType
@@ -510,6 +576,10 @@ export interface CreateMissionInput {
   secondaryAttribute: Attribute | null
   dueDate: string | null
   dueTime: string | null
+  /** Días ISO (1=Lunes..7=Domingo), o null para "todos los días". Solo se persiste si type = 'routine' (mission_routine_fields_check, backend/024_routine_days_and_end_date.sql). */
+  daysOfWeek: number[] | null
+  /** Último día (inclusive) en que la rutina genera ocurrencia, o null para "sin fecha de fin". Solo se persiste si type = 'routine'. */
+  endDate: string | null
 }
 
 export async function createMission(input: CreateMissionInput): Promise<MissionRow> {
@@ -517,6 +587,7 @@ export async function createMission(input: CreateMissionInput): Promise<MissionR
   // un Boss (documento 7.7): no hay un campo distinto, solo se etiqueta
   // distinto en el formulario (ver MissionForm).
   const usesDueDate = input.type === 'task' || input.type === 'boss'
+  const isRoutine = input.type === 'routine'
 
   const { data, error } = await supabase
     .from('mission')
@@ -530,7 +601,9 @@ export async function createMission(input: CreateMissionInput): Promise<MissionR
       secondary_attribute: input.secondaryAttribute,
       due_date: usesDueDate ? input.dueDate : null,
       due_time: usesDueDate ? input.dueTime : null,
-      recurrence_rule: input.type === 'routine' ? { frequency: 'daily' } : null,
+      recurrence_rule: isRoutine ? { frequency: 'daily' } : null,
+      days_of_week: isRoutine ? input.daysOfWeek : null,
+      end_date: isRoutine ? input.endDate : null,
     })
     .select()
     .single()
@@ -914,6 +987,17 @@ export async function completeRoutineOccurrence(
   attributeProgress: AttributeProgressRow[],
   occurrenceDate: string,
 ): Promise<CompletionOutcome> {
+  // Defensa en profundidad: MissionList ya oculta el botón de completar en
+  // días no aplicables o tras end_date, pero esta función es la que
+  // realmente escribe en mission_occurrence, así que repite la validación
+  // aquí por si se llega a llamar desde otro sitio con datos obsoletos.
+  if (!isDayApplicable(mission, occurrenceDate)) {
+    throw new Error(`${occurrenceDate} no es un día aplicable para la rutina ${mission.id}`)
+  }
+  if (mission.end_date !== null && occurrenceDate > mission.end_date) {
+    throw new Error(`La rutina ${mission.id} ya finalizó el ${mission.end_date}`)
+  }
+
   const outcome = await applyMissionCompletionXp(mission, character, attributeProgress, 0, {
     missionsCompletedCount: 1,
   })
@@ -1588,7 +1672,16 @@ export function computeExpiredFailureEvents(
     }
 
     const createdDate = localDateString(new Date(mission.created_at))
-    for (const day of localDateStringsBetween(createdDate, today)) {
+    // Acota el backfill a end_date si ya quedó atrás, para no generar ni
+    // revisar ocurrencias más allá del cierre de la rutina. Si en cambio se
+    // excluyera la misión entera de fetchActiveMissions una vez pasado
+    // end_date, cualquier día sin resolver *anterior* al cierre (p. ej. el
+    // usuario no abrió la app entre esa fecha y hoy) dejaría de evaluarse
+    // para siempre — por eso el corte se hace aquí, no en la consulta.
+    const rangeEnd = mission.end_date !== null && mission.end_date < today ? mission.end_date : today
+
+    for (const day of localDateStringsBetween(createdDate, rangeEnd)) {
+      if (!isDayApplicable(mission, day)) continue
       if (resolvedOccurrenceDays.has(`${mission.id}:${day}`)) continue
 
       const dueAt = dueDateTimeLocal(day, null)
