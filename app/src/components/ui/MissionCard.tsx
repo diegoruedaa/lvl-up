@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { BadgeVariant } from './Badge'
 import { Badge } from './Badge'
@@ -28,6 +29,7 @@ interface MissionCardProps {
   onComplete: () => void
   onUndo: () => void
   onDelete: () => void
+  onEdit: () => void
 }
 
 /** Tarjeta de Tarea/Rutina: zona superior con degradado del color de atributo (medalla ilustrada +
@@ -58,6 +60,7 @@ export function MissionCard({
   onComplete,
   onUndo,
   onDelete,
+  onEdit,
 }: MissionCardProps) {
   const style = {
     '--attr-color': attributeColor,
@@ -65,8 +68,54 @@ export function MissionCard({
     '--attr-fg': attributeTextColor,
   } as CSSProperties
 
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Cierra el menú al tocar/clicar fuera de él — no hace falta nada al pulsar Editar, porque
+  // seleccionar la opción ya lo cierra explícitamente antes de llamar a onEdit.
+  useEffect(() => {
+    if (!menuOpen) return
+    function handlePointerDown(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [menuOpen])
+
   return (
     <li className={`mission-card${isPending ? ' mission-card--pending' : ''}`} style={style}>
+      {/* Oculto durante isPending: mismo criterio que ya aplicaba a Completar/Eliminar (no se edita
+          una misión con una confirmación de hoy todavía en el margen de deshacer). */}
+      {!isPending && (
+        <div className="mission-card__menu" ref={menuRef}>
+          <button
+            type="button"
+            className="mission-card__menu-trigger"
+            aria-label="Más acciones"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            ⋮
+          </button>
+          {menuOpen && (
+            <div className="mission-card__menu-dropdown" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                className="mission-card__menu-item"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onEdit()
+                }}
+              >
+                Editar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="mission-card__ribbon">
         <img className="mission-card__attr-medal" src={attributeIcon} alt="" aria-hidden="true" />
         <span className="mission-card__ribbon-text">

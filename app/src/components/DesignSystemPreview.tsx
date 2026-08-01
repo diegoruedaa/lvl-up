@@ -613,6 +613,7 @@ function MisionesListPreview() {
               onComplete={() => handleComplete(mission.id)}
               onUndo={handleUndo}
               onDelete={() => handleDelete(mission.id)}
+              onEdit={() => {}}
             />
           )
         })}

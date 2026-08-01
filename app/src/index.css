@@ -951,6 +951,70 @@ button {
   border-radius: 10px;
 }
 
+/* Menú "más acciones" (⋮): toda la interacción de edición vive detrás de este icono discreto en
+   la esquina superior derecha, para que la fila de acciones inferior conserve solo Completar/
+   Eliminar (su layout de 2 botones original). Sin fondo/borde en reposo — solo se marca al
+   hover/focus — pero con una superficie de toque de 44px (tamaño mobile-friendly recomendado)
+   aunque el glifo "⋮" en sí sea pequeño. */
+.mission-card__menu {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  z-index: 1;
+}
+
+.mission-card__menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--attr-fg, var(--color-surface));
+  opacity: 0.75;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mission-card__menu-trigger:hover,
+.mission-card__menu-trigger:focus-visible {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.mission-card__menu-dropdown {
+  position: absolute;
+  top: calc(100% - 0.4rem);
+  right: 0.4rem;
+  min-width: 130px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(58, 46, 39, 0.28);
+  overflow: hidden;
+}
+
+.mission-card__menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.mission-card__menu-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
 .mission-card__actions {
   display: flex;
   gap: 0.5rem;
@@ -2580,6 +2644,61 @@ button {
 .level-up-overlay__rank-reward {
   font-size: var(--text-sm);
   color: var(--color-text);
+}
+
+/* Modal genérico (p.ej. editar una misión desde su tarjeta): mismo patrón fixed + backdrop que
+   level-up-overlay, pero con scroll propio en el panel (el formulario que envuelve puede ser más
+   alto que la pantalla) y z-index menor, para que un level-up que ocurra durante la edición
+   (completar la misma sesión) siga quedando por encima. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(58, 46, 39, 0.66);
+}
+
+.modal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 22px 48px rgba(58, 46, 39, 0.3);
+  overflow: hidden;
+}
+
+.modal-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-panel__title {
+  margin: 0;
+}
+
+.modal-panel__close {
+  border: none;
+  background: none;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.modal-panel__body {
+  padding: 1.1rem;
+  overflow-y: auto;
 }
 
 .tutorial-overlay__step-indicator {

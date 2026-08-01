@@ -566,6 +566,70 @@ export async function computeRoutineStreak(missionId: string): Promise<number> {
   return routineStreakFromOccurrences(data as Pick<MissionOccurrenceRow, 'occurrence_date' | 'status'>[], todayLocalDateString())
 }
 
+/** Campos cuya relevancia depende del tipo de misión (due_date/due_time solo task/boss;
+ * days_of_week/end_date/recurrence_rule solo routine) — mismo shape que aceptan createMission
+ * y updateMission, para poder normalizarlos con una sola función. */
+interface MissionTypeDependentFields {
+  dueDate: string | null
+  dueTime: string | null
+  daysOfWeek: number[] | null
+  endDate: string | null
+}
+
+/**
+ * Anula los campos que no aplican al tipo de misión dado, para que nunca quede un due_date
+ * colgado en una rutina o un days_of_week colgado en una tarea (mission_routine_fields_check,
+ * backend/024_routine_days_and_end_date.sql). due_date/due_time se reutilizan tal cual como
+ * "fecha de resultado" para un Boss (documento 7.7): no hay un campo distinto, solo se etiqueta
+ * distinto en el formulario (ver MissionForm). Usado tanto por createMission como por
+ * updateMission para no duplicar esta normalización.
+ */
+function normalizeMissionFieldsByType(type: MissionType, fields: MissionTypeDependentFields) {
+  const usesDueDate = type === 'task' || type === 'boss'
+  const isRoutine = type === 'routine'
+
+  return {
+    due_date: usesDueDate ? fields.dueDate : null,
+    due_time: usesDueDate ? fields.dueTime : null,
+    recurrence_rule: isRoutine ? ({ frequency: 'daily' } as const) : null,
+    days_of_week: isRoutine ? fields.daysOfWeek : null,
+    end_date: isRoutine ? fields.endDate : null,
+  }
+}
+
+/** Mismo shape que rellena MissionForm para validar antes de crear/editar una misión. */
+export interface MissionFieldsToValidate {
+  type: MissionType
+  dueDate: string | null
+  daysMode: 'all' | 'specific'
+  selectedDays: number[]
+  hasEndDate: boolean
+  endDate: string | null
+}
+
+/**
+ * Valida los campos de un formulario de misión (creación o edición) antes de llamar a
+ * createMission/updateMission. Devuelve el primer mensaje de error encontrado, o null si todo
+ * es válido. Reutilizado por MissionForm en ambos modos para no duplicar estas comprobaciones.
+ */
+export function validateMissionFields(fields: MissionFieldsToValidate): string | null {
+  const usesDueDate = fields.type === 'task' || fields.type === 'boss'
+
+  if (usesDueDate && !fields.dueDate) {
+    return fields.type === 'boss' ? 'Los Bosses necesitan una fecha de resultado.' : 'Las tareas necesitan una fecha límite.'
+  }
+
+  if (fields.type === 'routine' && fields.daysMode === 'specific' && fields.selectedDays.length === 0) {
+    return 'Elige al menos un día para la rutina, o vuelve a "Todos los días".'
+  }
+
+  if (fields.type === 'routine' && fields.hasEndDate && !fields.endDate) {
+    return 'Elige la fecha de fin, o desactiva esa opción.'
+  }
+
+  return null
+}
+
 export interface CreateMissionInput {
   adventureRunId: string
   type: MissionType
@@ -583,12 +647,6 @@ export interface CreateMissionInput {
 }
 
 export async function createMission(input: CreateMissionInput): Promise<MissionRow> {
-  // due_date/due_time se reutilizan tal cual como "fecha de resultado" para
-  // un Boss (documento 7.7): no hay un campo distinto, solo se etiqueta
-  // distinto en el formulario (ver MissionForm).
-  const usesDueDate = input.type === 'task' || input.type === 'boss'
-  const isRoutine = input.type === 'routine'
-
   const { data, error } = await supabase
     .from('mission')
     .insert({
@@ -599,16 +657,82 @@ export async function createMission(input: CreateMissionInput): Promise<MissionR
       difficulty: input.difficulty,
       primary_attribute: input.primaryAttribute,
       secondary_attribute: input.secondaryAttribute,
-      due_date: usesDueDate ? input.dueDate : null,
-      due_time: usesDueDate ? input.dueTime : null,
-      recurrence_rule: isRoutine ? { frequency: 'daily' } : null,
-      days_of_week: isRoutine ? input.daysOfWeek : null,
-      end_date: isRoutine ? input.endDate : null,
+      ...normalizeMissionFieldsByType(input.type, input),
     })
     .select()
     .single()
 
   if (error) throw error
+  return data as MissionRow
+}
+
+export interface UpdateMissionInput {
+  name: string
+  description: string | null
+  difficulty: Difficulty
+  primaryAttribute: Attribute
+  secondaryAttribute: Attribute | null
+  dueDate: string | null
+  dueTime: string | null
+  daysOfWeek: number[] | null
+  endDate: string | null
+}
+
+/** SQLSTATE que PostgREST asigna a "0 (o más de 1) fila devuelta" cuando se usa `.single()` — aquí
+ * significa que el `.eq('status', 'active')` de updateMission no encontró la misión, típicamente
+ * porque se resolvió (completó/falló/se borró) entre que se abrió el formulario de edición y que
+ * se guardó. */
+const NO_ROW_RETURNED_ERRCODE = 'PGRST116'
+
+/**
+ * Edita el nombre/descripción/dificultad/atributos de una Tarea o Rutina ya creada, y para
+ * Tareas su due_date, o para Rutinas su days_of_week/end_date. El tipo NO es editable: se recibe
+ * aquí solo para (a) normalizar los campos igual que createMission y (b) como guarda adicional
+ * `.eq('type', type)` que impide que el update lo reescriba. Los Boss quedan fuera de este
+ * alcance — se rechazan explícitamente en vez de solo ocultar el botón en la UI.
+ *
+ * Estos cambios son puramente prospectivos, sin recálculo retroactivo, por diseño ya existente
+ * en el resto del sistema (no hace falta ninguna migración de datos al editar):
+ * - mission_occurrence/history_event ya escritos son inmutables — ninguna función los reabre ni
+ *   los regenera al cambiar la misión (ver completeRoutineOccurrence, processExpiredMissions).
+ * - computeRoutineStreak (más arriba) solo lee mission_occurrence ya existentes; nunca vuelve a
+ *   evaluar days_of_week/end_date contra el histórico, así que la racha no se ve afectada.
+ * - isDayApplicable/MissionList evalúan siempre contra los valores ACTUALES de `mission`, en
+ *   cada render — por eso un days_of_week/end_date nuevo aplica desde ya para "hoy en adelante"
+ *   sin tocar ninguna fila pasada.
+ *
+ * `.eq('status', 'active')` evita editar una misión que dejó de estar activa entre que se abrió
+ * el formulario y que se guardó (p.ej. processExpiredMissions la venció); si eso ocurre, `.single()`
+ * no devuelve fila y se lanza un error legible en vez del genérico de PostgREST.
+ */
+export async function updateMission(
+  missionId: string,
+  type: Exclude<MissionType, 'boss'>,
+  input: UpdateMissionInput,
+): Promise<MissionRow> {
+  const { data, error } = await supabase
+    .from('mission')
+    .update({
+      name: input.name,
+      description: input.description,
+      difficulty: input.difficulty,
+      primary_attribute: input.primaryAttribute,
+      secondary_attribute: input.secondaryAttribute,
+      ...normalizeMissionFieldsByType(type, input),
+    })
+    .eq('id', missionId)
+    .eq('type', type)
+    .eq('status', 'active')
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === NO_ROW_RETURNED_ERRCODE) {
+      throw new Error('Esta misión ya no está activa, así que no se puede editar.')
+    }
+    throw error
+  }
+
   return data as MissionRow
 }
 

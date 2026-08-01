@@ -16,13 +16,21 @@ import {
   MISSION_TYPE_LABELS,
 } from '../types/database'
 import type { MissionRow, MissionType } from '../types/database'
-import { createMission, todayLocalDateString } from '../lib/gameApi'
+import { createMission, todayLocalDateString, updateMission, validateMissionFields } from '../lib/gameApi'
 import { getErrorMessage } from '../lib/errors'
 import { Button, StarPicker } from './ui'
 
 interface MissionFormProps {
   adventureRunId: string
-  onCreated: (mission: MissionRow) => void
+  /** 'create' (por defecto) muestra el formulario en blanco y llama a createMission; 'edit'
+   * precarga los campos desde initialMission y llama a updateMission — el tipo queda fijo, no es
+   * editable (ver Dashboard/MissionCard: el botón "Editar" ni siquiera existe para Boss). */
+  mode?: 'create' | 'edit'
+  /** Requerido cuando mode = 'edit'; ignorado en modo creación. */
+  initialMission?: MissionRow
+  onSubmitted: (mission: MissionRow) => void
+  /** Solo se usa en modo edición (el botón "Cancelar" cierra el modal sin guardar). */
+  onCancel?: () => void
 }
 
 function isBossDifficulty(difficulty: Difficulty): difficulty is BossType {
@@ -40,19 +48,21 @@ const DAY_OPTIONS: { iso: number; label: string }[] = [
   { iso: 7, label: 'D' },
 ]
 
-export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
-  const [type, setType] = useState<MissionType>('task')
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [difficulty, setDifficulty] = useState<Difficulty>('easy')
-  const [primaryAttribute, setPrimaryAttribute] = useState<Attribute>('vitality')
-  const [secondaryAttribute, setSecondaryAttribute] = useState<Attribute | ''>('')
-  const [dueDate, setDueDate] = useState('')
-  const [dueTime, setDueTime] = useState('')
-  const [daysMode, setDaysMode] = useState<'all' | 'specific'>('all')
-  const [selectedDays, setSelectedDays] = useState<number[]>([])
-  const [hasEndDate, setHasEndDate] = useState(false)
-  const [endDate, setEndDate] = useState('')
+export function MissionForm({ adventureRunId, mode = 'create', initialMission, onSubmitted, onCancel }: MissionFormProps) {
+  const isEdit = mode === 'edit'
+
+  const [type, setType] = useState<MissionType>(initialMission?.type ?? 'task')
+  const [name, setName] = useState(initialMission?.name ?? '')
+  const [description, setDescription] = useState(initialMission?.description ?? '')
+  const [difficulty, setDifficulty] = useState<Difficulty>(initialMission?.difficulty ?? 'easy')
+  const [primaryAttribute, setPrimaryAttribute] = useState<Attribute>(initialMission?.primary_attribute ?? 'vitality')
+  const [secondaryAttribute, setSecondaryAttribute] = useState<Attribute | ''>(initialMission?.secondary_attribute ?? '')
+  const [dueDate, setDueDate] = useState(initialMission?.due_date ?? '')
+  const [dueTime, setDueTime] = useState(initialMission?.due_time ?? '')
+  const [daysMode, setDaysMode] = useState<'all' | 'specific'>(initialMission?.days_of_week ? 'specific' : 'all')
+  const [selectedDays, setSelectedDays] = useState<number[]>(initialMission?.days_of_week ?? [])
+  const [hasEndDate, setHasEndDate] = useState(initialMission?.end_date != null)
+  const [endDate, setEndDate] = useState(initialMission?.end_date ?? '')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -67,7 +77,7 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
 
   // Al cambiar de tipo, la dificultad seleccionada debe seguir siendo válida
   // para el nuevo tipo: mission_boss_difficulty_check (010_boss.sql) exige
-  // boss_* si y solo si type = 'boss'.
+  // boss_* si y solo si type = 'boss'. No aplica en edición: el tipo está fijo.
   function handleTypeChange(next: MissionType) {
     setType(next)
     if (next === 'boss' && !isBossDifficulty(difficulty)) {
@@ -84,26 +94,22 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
     event.preventDefault()
     setError(null)
 
-    if (usesDueDate && !dueDate) {
-      setError(type === 'boss' ? 'Los Bosses necesitan una fecha de resultado.' : 'Las tareas necesitan una fecha límite.')
-      return
-    }
-
-    if (type === 'routine' && daysMode === 'specific' && selectedDays.length === 0) {
-      setError('Elige al menos un día para la rutina, o vuelve a "Todos los días".')
-      return
-    }
-
-    if (type === 'routine' && hasEndDate && !endDate) {
-      setError('Elige la fecha de fin, o desactiva esa opción.')
+    const validationError = validateMissionFields({
+      type,
+      dueDate: usesDueDate ? dueDate : null,
+      daysMode,
+      selectedDays,
+      hasEndDate,
+      endDate,
+    })
+    if (validationError) {
+      setError(validationError)
       return
     }
 
     setSubmitting(true)
     try {
-      const mission = await createMission({
-        adventureRunId,
-        type,
+      const sharedFields = {
         name,
         description: description.trim() === '' ? null : description.trim(),
         difficulty,
@@ -113,17 +119,26 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
         dueTime: usesDueDate && dueTime !== '' ? dueTime : null,
         daysOfWeek: type === 'routine' && daysMode === 'specific' ? selectedDays : null,
         endDate: type === 'routine' && hasEndDate ? endDate : null,
-      })
-      onCreated(mission)
-      setName('')
-      setDescription('')
-      setDueDate('')
-      setDueTime('')
-      setSecondaryAttribute('')
-      setDaysMode('all')
-      setSelectedDays([])
-      setHasEndDate(false)
-      setEndDate('')
+      }
+
+      if (isEdit) {
+        // Garantizado por el llamador: "Editar" solo existe en MissionCard (Tarea/Rutina), nunca
+        // en BossMissionCard, y el selector de tipo está bloqueado en modo edición.
+        const mission = await updateMission(initialMission!.id, type as Exclude<MissionType, 'boss'>, sharedFields)
+        onSubmitted(mission)
+      } else {
+        const mission = await createMission({ adventureRunId, type, ...sharedFields })
+        onSubmitted(mission)
+        setName('')
+        setDescription('')
+        setDueDate('')
+        setDueTime('')
+        setSecondaryAttribute('')
+        setDaysMode('all')
+        setSelectedDays([])
+        setHasEndDate(false)
+        setEndDate('')
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -133,17 +148,23 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-      <h3>Nueva misión</h3>
+      {!isEdit && <h3>Nueva misión</h3>}
 
       <label>
         Tipo
-        <div className="tab-row" style={{ overflow: 'visible' }}>
-          {(['task', 'routine', 'boss'] as MissionType[]).map((t) => (
-            <Button key={t} type="button" variant={type === t ? 'primary' : 'secondary'} onClick={() => handleTypeChange(t)}>
-              {MISSION_TYPE_LABELS[t]}
-            </Button>
-          ))}
-        </div>
+        {isEdit ? (
+          <div>
+            <span className="mission-card__type-badge">{MISSION_TYPE_LABELS[type]}</span>
+          </div>
+        ) : (
+          <div className="tab-row" style={{ overflow: 'visible' }}>
+            {(['task', 'routine', 'boss'] as MissionType[]).map((t) => (
+              <Button key={t} type="button" variant={type === t ? 'primary' : 'secondary'} onClick={() => handleTypeChange(t)}>
+                {MISSION_TYPE_LABELS[t]}
+              </Button>
+            ))}
+          </div>
+        )}
       </label>
 
       <label>
@@ -180,6 +201,13 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
           </div>
         )}
       </label>
+
+      {isEdit && (
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+          Los cambios de dificultad y atributos solo afectan a lo que completes o falles a partir de ahora — lo ya resuelto
+          mantiene el XP/daño con el que se aplicó.
+        </p>
+      )}
 
       <label>
         Atributo principal
@@ -281,6 +309,12 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
             </div>
           )}
 
+          {isEdit && (
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+              El cambio de días aplica desde hoy: un día pasado sin resolver antes de guardar se queda tal cual estaba.
+            </p>
+          )}
+
           {hasEndDate ? (
             <label>
               <span className="field-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -300,7 +334,7 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
                 className="field-input"
                 type="date"
                 value={endDate}
-                min={todayLocalDateString()}
+                min={isEdit ? undefined : todayLocalDateString()}
                 onChange={(e) => setEndDate(e.target.value)}
                 required
               />
@@ -318,9 +352,16 @@ export function MissionForm({ adventureRunId, onCreated }: MissionFormProps) {
         </>
       )}
 
-      <Button type="submit" variant="primary" disabled={submitting}>
-        Anotar misión
-      </Button>
+      <div style={{ display: 'flex', gap: '0.6rem' }}>
+        <Button type="submit" variant="primary" disabled={submitting}>
+          {isEdit ? 'Guardar cambios' : 'Anotar misión'}
+        </Button>
+        {isEdit && onCancel && (
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={submitting}>
+            Cancelar
+          </Button>
+        )}
+      </div>
 
       {error && <p style={{ color: 'var(--color-danger)' }}>{error}</p>}
     </form>

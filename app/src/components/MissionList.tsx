@@ -42,6 +42,7 @@ interface MissionListProps {
   onComplete: (mission: MissionRow) => void
   onUndo: (mission: MissionRow) => void
   onDelete: (mission: MissionRow) => void
+  onEdit: (mission: MissionRow) => void
 }
 
 function effectiveDueDate(mission: MissionRow, today: string): string | null {
@@ -76,6 +77,7 @@ export function MissionList({
   onComplete,
   onUndo,
   onDelete,
+  onEdit,
 }: MissionListProps) {
   const visible = missions.filter((mission) => {
     if (mission.type === 'task') return true
@@ -138,6 +140,7 @@ export function MissionList({
             onComplete={() => onComplete(mission)}
             onUndo={() => onUndo(mission)}
             onDelete={() => onDelete(mission)}
+            onEdit={() => onEdit(mission)}
           />
         )
       })}
@@ -157,6 +160,7 @@ function MissionCardWithCountdown({
   onComplete,
   onUndo,
   onDelete,
+  onEdit,
 }: {
   mission: MissionRow
   today: string
@@ -168,6 +172,7 @@ function MissionCardWithCountdown({
   onComplete: () => void
   onUndo: () => void
   onDelete: () => void
+  onEdit: () => void
 }) {
   const countdownSeconds = useCountdownSeconds(pendingDeadline ?? null)
   const urgency = mission.type === 'task' ? dueUrgencyBadge(mission.due_date, today) : null
@@ -193,6 +198,7 @@ function MissionCardWithCountdown({
       onComplete={onComplete}
       onUndo={onUndo}
       onDelete={onDelete}
+      onEdit={onEdit}
     />
   )
 }

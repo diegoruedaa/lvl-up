@@ -36,6 +36,7 @@ import {
   BOSS_DIFFICULTY_LABELS,
   DIFFICULTY_COLORS,
   DIFFICULTY_LABELS,
+  MISSION_TYPE_LABELS,
   attributeSummaryText,
   bossIllustration,
 } from '../types/database'
@@ -64,7 +65,7 @@ import { MissionForm } from './MissionForm'
 import { MissionList } from './MissionList'
 import { RanksScreen } from './RanksScreen'
 import { TutorialOverlay } from './TutorialOverlay'
-import { BossMissionCard, Button, Card, LevelUpOverlay, ProgressBar, ScreenHeader } from './ui'
+import { BossMissionCard, Button, Card, LevelUpOverlay, Modal, ProgressBar, ScreenHeader } from './ui'
 
 function isBossDifficulty(difficulty: Difficulty): difficulty is BossType {
   return (BOSS_DIFFICULTIES as Difficulty[]).includes(difficulty)
@@ -204,6 +205,8 @@ export function Dashboard({ userId }: DashboardProps) {
   const [historyEvents, setHistoryEvents] = useState<HistoryEventRow[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [battlingMission, setBattlingMission] = useState<MissionRow | null>(null)
+  // Misión (Tarea/Rutina) que se está editando en el modal de MissionForm; null = modal cerrado.
+  const [editingMission, setEditingMission] = useState<MissionRow | null>(null)
   // Misión id -> instante (epoch ms) en el que expira el margen de deshacer; solo para pintar la cuenta atrás.
   const [pendingCompletions, setPendingCompletions] = useState<Record<string, number>>({})
   // Los timeout ids viven en un ref (no en estado) porque son solo para poder cancelarlos, no para renderizar.
@@ -525,8 +528,25 @@ export function Dashboard({ userId }: DashboardProps) {
     }
   }
 
-  function handleCreated(mission: MissionRow) {
-    setMissions((prev) => [...prev, mission])
+  /** Compartido por el formulario de creación y el de edición: si el id ya existe en el estado
+   * local lo reemplaza (edición), si no lo añade (creación) — sin refetch, para que un cambio de
+   * days_of_week/end_date que saque a la misión de "activas hoy" se refleje ya en este mismo render. */
+  function handleMissionSaved(mission: MissionRow) {
+    setMissions((prev) => {
+      const index = prev.findIndex((m) => m.id === mission.id)
+      if (index === -1) return [...prev, mission]
+      const next = [...prev]
+      next[index] = mission
+      return next
+    })
+    setEditingMission(null)
+  }
+
+  function handleEdit(mission: MissionRow) {
+    // Igual que handleDelete: no se edita una misión con una confirmación de hoy todavía en el
+    // margen de deshacer (MissionCard ya oculta el botón mientras tanto, esto es la defensa extra).
+    if (pendingCompletions[mission.id] !== undefined) return
+    setEditingMission(mission)
   }
 
   /**
@@ -1100,13 +1120,26 @@ export function Dashboard({ userId }: DashboardProps) {
                   onComplete={handleComplete}
                   onUndo={handleUndo}
                   onDelete={handleDelete}
+                  onEdit={handleEdit}
                 />
               </section>
 
               <section>
-                <MissionForm adventureRunId={gameState.adventureRun.id} onCreated={handleCreated} />
+                <MissionForm adventureRunId={gameState.adventureRun.id} onSubmitted={handleMissionSaved} />
               </section>
             </>
+          )}
+
+          {editingMission && (
+            <Modal title={`Editar ${MISSION_TYPE_LABELS[editingMission.type].toLowerCase()}`} onClose={() => setEditingMission(null)}>
+              <MissionForm
+                adventureRunId={gameState.adventureRun.id}
+                mode="edit"
+                initialMission={editingMission}
+                onSubmitted={handleMissionSaved}
+                onCancel={() => setEditingMission(null)}
+              />
+            </Modal>
           )}
 
           {screen === 'battles' && (
