@@ -882,6 +882,7 @@ button {
 .mission-card__name {
   display: block;
   min-width: 0;
+  overflow-wrap: break-word;
   font-family: var(--font-title);
   font-size: var(--text-lg);
   color: var(--attr-fg, var(--color-surface));

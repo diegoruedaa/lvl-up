@@ -460,6 +460,16 @@ const MOCK_ACTIVE_MISSIONS: MockMission[] = [
     secondaryAttribute: null,
     dueDate: '2026-08-01',
   },
+  {
+    id: 'm10',
+    type: 'routine',
+    name: 'Entrenamiento de natación en la piscina municipal',
+    description: 'Dos largos de crol, dos de espalda.',
+    difficulty: 'medium',
+    primaryAttribute: 'vitality',
+    secondaryAttribute: null,
+    dueDate: null,
+  },
 ]
 
 /** Dos Bosses cuya fecha de resultado ya llegó (hoy o antes) — mismo criterio que
