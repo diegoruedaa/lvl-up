@@ -833,10 +833,10 @@ button {
   background: linear-gradient(155deg, rgba(255, 255, 255, 0.22), rgba(0, 0, 0, 0.14)), var(--attr-color);
 }
 
-/* Insignia de tipo: en línea con el nombre (misma fila, alineada a su altura de texto) en vez de
-   position: absolute sobre la franja — con la medalla de atributo ocupando más alto que el bloque
-   de texto, un anclaje absoluto al borde superior de la franja quedaba por encima del título,
-   flotando sin relación visual con él. */
+/* Insignia de tipo: en su propia fila junto al atributo (mission-card__meta-row), debajo del
+   nombre — no compartiendo fila con él. El nombre es texto libre (puede ser largo); el atributo y
+   el tipo son siempre cortos, así que esta fila corre mucho menos riesgo de que el badge quede
+   apretado o tapado que cuando compartía fila con el título. */
 .mission-card__badges {
   display: flex;
   align-items: center;
@@ -872,16 +872,12 @@ button {
   flex: 1 1 auto;
 }
 
-.mission-card__title-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
 .mission-card__name {
   display: block;
   min-width: 0;
+  /* Salvaguarda defensiva: ya no comparte fila con el badge (ver mission-card__meta-row), pero el
+     nombre sigue siendo texto libre sin límite de longitud, así que mantenemos esto por si una
+     palabra suelta es más ancha que la franja completa a anchos muy pequeños. */
   overflow-wrap: break-word;
   font-family: var(--font-title);
   font-size: var(--text-lg);
@@ -892,7 +888,19 @@ button {
   text-decoration: line-through;
 }
 
+/* Fila propia para el atributo + el badge de tipo/racha, debajo del nombre — separada de la fila
+   del título (ver comentario en mission-card__badges) para que el nombre pueda ocupar todo el
+   ancho de la franja sin ceder espacio al badge. */
+.mission-card__meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .mission-card__attr-label {
+  min-width: 0;
+  overflow-wrap: break-word;
   font-size: var(--text-sm);
   color: var(--attr-fg, var(--color-surface));
   opacity: 0.75;

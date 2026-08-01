@@ -70,8 +70,14 @@ export function MissionCard({
       <div className="mission-card__ribbon">
         <img className="mission-card__attr-medal" src={attributeIcon} alt="" aria-hidden="true" />
         <span className="mission-card__ribbon-text">
-          <span className="mission-card__title-row">
-            <strong className={`mission-card__name${isPending ? ' mission-card__name--done' : ''}`}>{name}</strong>
+          <strong className={`mission-card__name${isPending ? ' mission-card__name--done' : ''}`}>{name}</strong>
+          <span className="mission-card__meta-row">
+            <span className="mission-card__attr-label">
+              {attributeLabel}
+              {secondaryAttributeLabel && (
+                <span className="mission-card__attr-secondary"> + {secondaryAttributeLabel}</span>
+              )}
+            </span>
             <span className="mission-card__badges">
               {typeof streak === 'number' && streak >= 1 && (
                 <Badge variant="streak" icon={<img className="mission-card__streak-icon" src="/ilustraciones/racha.png" alt="" />}>
@@ -80,12 +86,6 @@ export function MissionCard({
               )}
               <span className="mission-card__type-badge">{typeLabel}</span>
             </span>
-          </span>
-          <span className="mission-card__attr-label">
-            {attributeLabel}
-            {secondaryAttributeLabel && (
-              <span className="mission-card__attr-secondary"> + {secondaryAttributeLabel}</span>
-            )}
           </span>
         </span>
       </div>
