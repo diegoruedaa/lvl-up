@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { attributeXpRequiredForLevel, ITEM_CATALOG, MAX_HP, xpForMissionCompletion, xpRequiredForLevel } from 'rules-engine'
-import type { Attribute, Difficulty, MissionCompletionResult } from 'rules-engine'
+import {
+  attributeXpRequiredForLevel,
+  coinsForBossVictory,
+  damageForBossDefeat,
+  ITEM_CATALOG,
+  MAX_HP,
+  xpForMissionCompletion,
+  xpRequiredForLevel,
+} from 'rules-engine'
+import type { Attribute, BossType, Difficulty, MissionCompletionResult } from 'rules-engine'
 import { getErrorMessage } from '../lib/errors'
 import { claimTutorialReward } from '../lib/gameApi'
 import type { ClaimTutorialRewardOutcome } from '../lib/gameApi'
@@ -11,28 +19,50 @@ import {
   ATTRIBUTE_LABELS,
   ATTRIBUTE_RIBBON_TEXT,
   ATTRIBUTES,
+  BOSS_DIFFICULTY_LABELS,
+  bossIllustration,
+  DIFFICULTY_COLORS,
   DIFFICULTY_LABELS,
   DIFFICULTY_STAR_COUNT,
   ITEM_ICONS,
   ITEM_IDS,
   MISSION_DIFFICULTIES,
+  playerIllustration,
   RARITY_COLORS,
 } from '../types/database'
-import type { AttributeProgressRow, CharacterRow, InventoryItemRow } from '../types/database'
-import { Button, ItemRow, MentorDialogueBox, ProgressBar, StarPicker } from './ui'
+import type { AttributeProgressRow, CharacterRow, InventoryItemRow, PlayerCharacter } from '../types/database'
+import { BattleHex, BossMissionCard, Button, DefeatedFace, ItemRow, MentorDialogueBox, PersonSilhouette, ProgressBar, StarPicker } from './ui'
+
+/**
+ * Boss ficticio del tutorial (pasos 12-13): uno de los 6 Boss reales del juego (nombre de ejemplo
+ * del documento funcional 7.4 + ilustración real de bossIllustration por atributo, boss_minor para
+ * mantener la dificultad más simple), no un nombre inventado sin arte propio. Datos fijos, nunca
+ * persistidos — no existe fila `mission` real detrás. La fecha de resultado se calcula una vez al
+ * cargar el módulo, solo para que `BossMissionCard` tenga algo plausible que mostrar; no participa
+ * en ninguna lógica de "batallas pendientes" real (esa vive en Dashboard.tsx sobre misiones reales).
+ */
+const TUTORIAL_BOSS_TYPE: BossType = 'boss_minor'
+const TUTORIAL_BOSS_ATTRIBUTE: Attribute = 'intellect'
+const TUTORIAL_BOSS_NAME = 'Aprobar un examen'
+const TUTORIAL_BOSS_DESCRIPTION = 'Un reto grande que ya sabes que se acerca.'
+const TUTORIAL_BOSS_RESULT_DATE = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
 interface TutorialOverlayProps {
   character: CharacterRow
   attributeProgress: AttributeProgressRow[]
   inventory: InventoryItemRow[]
   adventureRunId: string
-  /** true si tutorial_reward_claimed ya era true al abrir: modo "solo consulta", sin botón de reclamar en el paso 12 (documento 6.2). */
+  /** Personaje elegido por la cuenta (backend/022_player_character.sql), para pintar el lado "Tú" de
+   * la arena simulada del paso 13 con la misma ilustración real que usa BossBattleScreen.tsx; null si
+   * aún no ha elegido, en cuyo caso se mantiene el BattleHex/PersonSilhouette genérico de siempre. */
+  playerCharacter: PlayerCharacter | null
+  /** true si tutorial_reward_claimed ya era true al abrir: modo "solo consulta", sin botón de reclamar en el paso 14 (documento 6.2). */
   alreadyClaimed: boolean
   onRewardClaimed: (outcome: ClaimTutorialRewardOutcome) => void
   onClose: () => void
 }
 
-const TOTAL_STEPS = 12
+const TOTAL_STEPS = 14
 
 interface TutorialStep {
   title: string
@@ -47,6 +77,7 @@ export function TutorialOverlay({
   attributeProgress,
   inventory,
   adventureRunId,
+  playerCharacter,
   alreadyClaimed,
   onRewardClaimed,
   onClose,
@@ -58,6 +89,7 @@ export function TutorialOverlay({
   const [testCompleted, setTestCompleted] = useState(false)
   const [claiming, setClaiming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [bossOutcomePreview, setBossOutcomePreview] = useState<'victory' | 'defeat' | null>(null)
 
   const primaryAttributeProgress = attributeProgress.find((row) => row.attribute === testAttribute) ?? null
 
@@ -78,6 +110,27 @@ export function TutorialOverlay({
           secondaryAttributeState: null,
         })
       : null
+
+  /** Fila real de attribute_progress del atributo fijo del Boss del tutorial (intelecto), leída solo
+   * para el preview de XP de abajo — igual que `primaryAttributeProgress` pero para ese atributo en
+   * vez de `testAttribute`, ya que el Boss del paso 12-13 ahora es fijo, no sigue al de los pasos 1-3. */
+  const bossAttributeProgress = attributeProgress.find((row) => row.attribute === TUTORIAL_BOSS_ATTRIBUTE) ?? null
+
+  /**
+   * Misma idea que `preview` pero para la Victoria del Boss ficticio del paso 13: pura,
+   * sobre el atributo/estado real actuales, jamás escrita. No depende de `testCompleted` ni de
+   * `bossOutcomePreview` — se calcula siempre que hay atributo principal, igual que `preview`.
+   */
+  const bossXpPreview: MissionCompletionResult | null = bossAttributeProgress
+    ? xpForMissionCompletion({
+        difficulty: TUTORIAL_BOSS_TYPE,
+        primaryAttribute: TUTORIAL_BOSS_ATTRIBUTE,
+        secondaryAttribute: null,
+        generalState: { level: character.level, currentXp: character.current_xp },
+        primaryAttributeState: { level: bossAttributeProgress.level, currentXp: bossAttributeProgress.current_xp },
+        secondaryAttributeState: null,
+      })
+    : null
 
   function goNext() {
     setStep((s) => Math.min(TOTAL_STEPS, s + 1))
@@ -353,7 +406,144 @@ export function TutorialOverlay({
         }
       case 12:
         return {
-          title: '12. Usa una Poción',
+          title: '12. Misiones tipo Boss',
+          dialogue: (
+            <>
+              <p>
+                Hay un tercer tipo de misión, distinto de Tarea y Rutina: el <strong>Boss</strong>. No se completa al
+                instante — tiene una fecha de resultado futura, y hasta que llega no puedes declarar si lo superaste
+                o no.
+              </p>
+              <p>
+                Mientras tanto lo verás así en tu lista. El día de la fecha de resultado pasará a{' '}
+                <strong>Batallas pendientes</strong>, donde por fin podrás resolverlo.
+              </p>
+            </>
+          ),
+          widget: (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <BossMissionCard
+                name={TUTORIAL_BOSS_NAME}
+                description={TUTORIAL_BOSS_DESCRIPTION}
+                attributeIcon={bossIllustration(TUTORIAL_BOSS_ATTRIBUTE)}
+                difficultyLabel={BOSS_DIFFICULTY_LABELS[TUTORIAL_BOSS_TYPE]}
+                difficultyColor={DIFFICULTY_COLORS[TUTORIAL_BOSS_TYPE]}
+                attributeText={ATTRIBUTE_LABELS[TUTORIAL_BOSS_ATTRIBUTE]}
+                resultDate={TUTORIAL_BOSS_RESULT_DATE}
+              />
+            </ul>
+          ),
+        }
+      case 13:
+        return {
+          title: '13. La arena: Victoria o Derrota',
+          dialogue: (
+            <>
+              {bossOutcomePreview === null && (
+                <p>
+                  Cuando llega la fecha de resultado, entras en la pantalla de batalla: <strong>Tú</strong> contra el
+                  Boss. Ahí declaras con honestidad si ganaste o perdiste. Prueba los dos botones para ver qué pasa
+                  en cada caso — puedes cambiar de uno a otro cuantas veces quieras.
+                </p>
+              )}
+              {bossOutcomePreview === 'victory' && (
+                <p>
+                  Si declaras <strong>Victoria</strong>, ganas monedas y XP, igual que con cualquier misión — pero un
+                  Boss da más monedas que una tarea normal.
+                </p>
+              )}
+              {bossOutcomePreview === 'defeat' && (
+                <p>
+                  Si declaras <strong>Derrota</strong>, pierdes HP — más que con una misión normal, porque un Boss es
+                  un reto mayor.
+                </p>
+              )}
+            </>
+          ),
+          widget: (
+            <div className="boss-arena">
+              <span className="boss-arena__badge">Batalla contra Boss</span>
+
+              <div className="boss-arena__combatants">
+                <div className="boss-arena__side">
+                  <div className="boss-arena__side-visual">
+                    {/* Misma lógica que playerHex en BossBattleScreen.tsx: si la cuenta ya eligió
+                        personaje (chico/chica), su ilustración real; si no, el BattleHex genérico de
+                        siempre. playerCharacter llega por prop desde Dashboard.tsx, ya cargado — no
+                        se consulta aquí. */}
+                    {playerCharacter ? (
+                      <img
+                        className="boss-arena__player-image"
+                        src={playerIllustration(
+                          playerCharacter,
+                          bossOutcomePreview === null ? 'neutral' : bossOutcomePreview === 'victory' ? 'victoria' : 'derrota',
+                        )}
+                        alt=""
+                      />
+                    ) : (
+                      <BattleHex
+                        icon={bossOutcomePreview === 'defeat' ? <DefeatedFace /> : <PersonSilhouette />}
+                        size={76}
+                        fillColor="var(--color-border)"
+                        iconColor="var(--color-text)"
+                        defeated={bossOutcomePreview === 'defeat'}
+                      />
+                    )}
+                  </div>
+                  <span className="boss-arena__side-label">Tú</span>
+                </div>
+                <span className="boss-arena__vs">VS</span>
+                <div className="boss-arena__side">
+                  <div className="boss-arena__side-visual">
+                    {/* Misma ilustración real que usa BossBattleScreen.tsx (bossIllustration por
+                        atributo + variante neutral/victoria/derrota) — no un icono genérico, para
+                        que el Boss del tutorial tenga la misma imagen que vería el usuario en una
+                        Batalla contra Boss real. */}
+                    <img
+                      className="boss-arena__boss-image"
+                      src={bossIllustration(
+                        TUTORIAL_BOSS_ATTRIBUTE,
+                        bossOutcomePreview === null ? 'neutral' : bossOutcomePreview === 'victory' ? 'victoria' : 'derrota',
+                      )}
+                      alt=""
+                    />
+                  </div>
+                  <span className="boss-arena__side-label">Boss</span>
+                </div>
+              </div>
+
+              <h2 className="boss-arena__name">{TUTORIAL_BOSS_NAME}</h2>
+              <span className="boss-arena__difficulty-badge">{BOSS_DIFFICULTY_LABELS[TUTORIAL_BOSS_TYPE]}</span>
+
+              <div className="boss-arena__actions">
+                <Button variant="primary" onClick={() => setBossOutcomePreview('victory')}>
+                  Ver qué pasa si ganas
+                </Button>
+                <Button variant="danger" onClick={() => setBossOutcomePreview('defeat')}>
+                  Ver qué pasa si pierdes
+                </Button>
+              </div>
+
+              {bossOutcomePreview === 'victory' && bossXpPreview && (
+                <div className="boss-arena__breakdown">
+                  <p className="boss-arena__breakdown-line">+{bossXpPreview.xpGained} XP</p>
+                  <p className="boss-arena__breakdown-line boss-arena__breakdown-coins">
+                    +{coinsForBossVictory(TUTORIAL_BOSS_TYPE)} monedas
+                  </p>
+                </div>
+              )}
+
+              {bossOutcomePreview === 'defeat' && (
+                <div className="boss-arena__breakdown">
+                  <p className="boss-arena__breakdown-line">-{damageForBossDefeat(false)} HP</p>
+                </div>
+              )}
+            </div>
+          ),
+        }
+      case 14:
+        return {
+          title: '14. Usa una Poción',
           dialogue: (
             <>
               <p>Las pociones curan HP al instante. Se usan desde la mochila.</p>
@@ -405,7 +595,7 @@ export function TutorialOverlay({
           </Button>
         ) : (
           <Button variant="primary" onClick={handleFinish} disabled={claiming}>
-            {alreadyClaimed ? 'Cerrar' : claiming ? 'Reclamando...' : '🎁 Finalizar tutorial'}
+            {alreadyClaimed ? 'Cerrar' : claiming ? 'Reclamando...' : 'Finalizar tutorial'}
           </Button>
         )}
       </div>

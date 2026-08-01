@@ -1010,6 +1010,7 @@ function TutorialPreview() {
       attributeProgress={TUTORIAL_MOCK_ATTRIBUTE_PROGRESS}
       inventory={TUTORIAL_MOCK_INVENTORY}
       adventureRunId="mock"
+      playerCharacter="chico"
       alreadyClaimed={false}
       onRewardClaimed={() => {}}
       onClose={() => {}}

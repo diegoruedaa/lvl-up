@@ -985,6 +985,7 @@ export function Dashboard({ userId }: DashboardProps) {
             attributeProgress={gameState.attributeProgress}
             inventory={inventory}
             adventureRunId={gameState.adventureRun.id}
+            playerCharacter={userProfile?.player_character ?? null}
             alreadyClaimed={userProfile?.tutorial_reward_claimed ?? true}
             onRewardClaimed={handleTutorialRewardClaimed}
             onClose={() => setActiveOverlay(null)}
