@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errors'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
+import { PasswordInput } from './ui/PasswordInput'
 
 type Mode = 'signIn' | 'signUp'
 
@@ -79,9 +80,7 @@ export function AuthScreen() {
 
           <label>
             <span className="field-label">Contraseña</span>
-            <input
-              className="field-input"
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

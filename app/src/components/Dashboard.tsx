@@ -61,6 +61,7 @@ import { CharacterSelectOverlay } from './CharacterSelectOverlay'
 import { HistoryScreen } from './HistoryScreen'
 import { InventoryScreen } from './InventoryScreen'
 import { MarketScreen } from './MarketScreen'
+import { ChangePasswordForm } from './ChangePasswordForm'
 import { MissionForm } from './MissionForm'
 import { MissionList } from './MissionList'
 import { RanksScreen } from './RanksScreen'
@@ -207,6 +208,9 @@ export function Dashboard({ userId }: DashboardProps) {
   const [battlingMission, setBattlingMission] = useState<MissionRow | null>(null)
   // Misión (Tarea/Rutina) que se está editando en el modal de MissionForm; null = modal cerrado.
   const [editingMission, setEditingMission] = useState<MissionRow | null>(null)
+  // Controla el modal de Ajustes (cabecera): null = cerrado, 'menu' = opciones, 'changePassword' = formulario.
+  const [settingsView, setSettingsView] = useState<'menu' | 'changePassword' | null>(null)
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false)
   // Misión id -> instante (epoch ms) en el que expira el margen de deshacer; solo para pintar la cuenta atrás.
   const [pendingCompletions, setPendingCompletions] = useState<Record<string, number>>({})
   // Los timeout ids viven en un ref (no en estado) porque son solo para poder cancelarlos, no para renderizar.
@@ -876,10 +880,59 @@ export function Dashboard({ userId }: DashboardProps) {
         }}
       >
         <h1>Lvl UP</h1>
-        <Button variant="secondary" className="dashboard-header__logout" onClick={() => supabase.auth.signOut()}>
-          Cerrar sesión
+        <Button variant="secondary" className="dashboard-header__logout" onClick={() => setSettingsView('menu')}>
+          <img src="/ilustraciones/ajustes.png" alt="" className="dashboard-header__logout-icon" />
+          Ajustes
         </Button>
       </div>
+
+      {settingsView && (
+        <Modal
+          title={settingsView === 'changePassword' ? 'Cambiar contraseña' : 'Ajustes'}
+          onClose={() => setSettingsView(null)}
+        >
+          {settingsView === 'menu' ? (
+            <div className="settings-menu">
+              <Button variant="secondary" className="settings-menu__action" onClick={() => setSettingsView('changePassword')}>
+                Cambiar contraseña
+              </Button>
+              <div className="settings-menu__danger-zone">
+                <Button variant="danger" className="settings-menu__action" onClick={() => supabase.auth.signOut()}>
+                  Cerrar sesión
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <ChangePasswordForm
+              onSuccess={() => {
+                setSettingsView(null)
+                setPasswordChangeSuccess(true)
+              }}
+              onCancel={() => setSettingsView('menu')}
+            />
+          )}
+        </Modal>
+      )}
+
+      {passwordChangeSuccess && (
+        <div
+          style={{
+            border: '2px solid var(--color-accent)',
+            borderRadius: '8px',
+            padding: '0.75rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <p style={{ margin: 0 }}>
+            <strong>Contraseña actualizada correctamente.</strong>
+          </p>
+          <button onClick={() => setPasswordChangeSuccess(false)}>Entendido</button>
+        </div>
+      )}
 
       {deathNotice && (
         <div
