@@ -7,13 +7,16 @@ interface HistoryEventRowProps {
   delta?: string
   deltaColor?: string
   notes?: string[]
+  /** Acción opcional de la fila (p.ej. el botón "Recuperar" de un evento mission_deleted). Se
+   * pinta debajo de las notas, dentro del mismo cuerpo de texto. */
+  action?: ReactNode
 }
 
 /** Fila de una entrada del Historial: marco cuadrado de icono (borde en el color del tipo de
  * evento) + texto principal + "delta" opcional resaltado (XP/HP/monedas) + notas adicionales
  * (p.ej. "Se consumió tu Mano Celestial."). Sin el patrón Card pesado — la separación entre filas
  * de un mismo día la pone el contenedor (borde inferior fino, --color-border). */
-export function HistoryEventRow({ icon, color, title, delta, deltaColor, notes }: HistoryEventRowProps) {
+export function HistoryEventRow({ icon, color, title, delta, deltaColor, notes, action }: HistoryEventRowProps) {
   return (
     <li className="history-event">
       <span className="history-event__frame" style={{ borderColor: color }}>
@@ -31,6 +34,7 @@ export function HistoryEventRow({ icon, color, title, delta, deltaColor, notes }
             {note}
           </p>
         ))}
+        {action && <div className="history-event__action">{action}</div>}
       </div>
     </li>
   )

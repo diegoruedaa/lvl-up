@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { MAX_ATTRIBUTE_LEVEL } from 'rules-engine'
 import type { Attribute, Difficulty } from 'rules-engine'
 import { ATTRIBUTES, ATTRIBUTE_LABELS, DIFFICULTY_LABELS } from '../types/database'
 import { todayLocalDateString } from '../lib/gameApi'
+import { getErrorMessage } from '../lib/errors'
 import {
   deltaColor,
   formatHistoryEventLines,
@@ -22,13 +24,22 @@ import type {
   ItemPurchasedPayload,
   ItemUsedPayload,
   MissionCompletedPayload,
+  MissionDeletedPayload,
   MissionFailedPayload,
+  MissionRow,
 } from '../types/database'
 
 interface HistoryScreenProps {
   historyEvents: HistoryEventRow[]
   character: CharacterRow
   attributeProgress: AttributeProgressRow[]
+  /** Misiones actualmente activas (ya en memoria en el padre, sin fetch nuevo): se usa solo para
+   * saber si una misión de un evento mission_deleted ya volvió a estar activa por otra vía (p.ej.
+   * se recuperó desde otra pestaña y este Dashboard ya la recargó) y así no ofrecer "Recuperar"
+   * dos veces. No es una fuente fiable de "sigue eliminada" — solo cubre missions ya vistas como
+   * activas; el guard real está en recoverMission (`.eq('status', 'deleted')` en gameApi.ts). */
+  activeMissions: MissionRow[]
+  onRecoverMission: (missionId: string) => Promise<void>
   onClose: () => void
 }
 
@@ -221,11 +232,44 @@ const DIFFICULTIES_FOR_STATS: Difficulty[] = ['trivial', 'easy', 'medium', 'hard
 
 type HistoryTab = 'historial' | 'estadisticas'
 
-export function HistoryScreen({ historyEvents, character, attributeProgress, onClose }: HistoryScreenProps) {
+export function HistoryScreen({
+  historyEvents,
+  character,
+  attributeProgress,
+  activeMissions,
+  onRecoverMission,
+  onClose,
+}: HistoryScreenProps) {
   const [activeTab, setActiveTab] = useState<HistoryTab>('historial')
+  // mission_id -> en curso / ya recuperada en esta sesión de pantalla / mensaje de error inline.
+  // Session-local (no persiste el historial): tras recuperar, el evento mission_deleted en sí
+  // nunca cambia (history_event es solo-inserción), así que esto es lo único que distingue "ya
+  // recuperada" de "todavía eliminada" sin necesidad de un mission_recovered nuevo.
+  const [recoveringMissionId, setRecoveringMissionId] = useState<string | null>(null)
+  const [recoveredMissionIds, setRecoveredMissionIds] = useState<Set<string>>(new Set())
+  const [recoverErrors, setRecoverErrors] = useState<Record<string, string>>({})
   const stats = computeStatistics(historyEvents, character)
   const byAttribute = new Map(attributeProgress.map((row) => [row.attribute, row]))
   const dayGroups = groupEventsByDay(historyEvents, todayLocalDateString())
+  const activeMissionIds = new Set(activeMissions.map((m) => m.id))
+
+  async function handleRecover(missionId: string) {
+    setRecoveringMissionId(missionId)
+    setRecoverErrors((prev) => {
+      if (!(missionId in prev)) return prev
+      const next = { ...prev }
+      delete next[missionId]
+      return next
+    })
+    try {
+      await onRecoverMission(missionId)
+      setRecoveredMissionIds((prev) => new Set(prev).add(missionId))
+    } catch (err) {
+      setRecoverErrors((prev) => ({ ...prev, [missionId]: getErrorMessage(err) }))
+    } finally {
+      setRecoveringMissionId(null)
+    }
+  }
 
   return (
     <div>
@@ -254,6 +298,30 @@ export function HistoryScreen({ historyEvents, character, attributeProgress, onC
                 <ul className="history-list">
                   {group.events.map((event) => {
                     const { title, deltaLines, noteLines } = splitEventLines(formatHistoryEventLines(event))
+                    let action: ReactNode = undefined
+
+                    if (event.event_type === 'mission_deleted') {
+                      const missionId = (event.payload as unknown as MissionDeletedPayload).mission_id
+                      const error = recoverErrors[missionId]
+                      if (recoveredMissionIds.has(missionId)) {
+                        action = <p className="history-event__action-done">Recuperada.</p>
+                      } else if (!activeMissionIds.has(missionId)) {
+                        action = (
+                          <>
+                            <button
+                              type="button"
+                              className="link-button"
+                              disabled={recoveringMissionId === missionId}
+                              onClick={() => handleRecover(missionId)}
+                            >
+                              {recoveringMissionId === missionId ? 'Recuperando…' : 'Recuperar'}
+                            </button>
+                            {error && <span className="history-event__action-error">{error}</span>}
+                          </>
+                        )
+                      }
+                    }
+
                     return (
                       <HistoryEventRowUi
                         key={event.id}
@@ -263,6 +331,7 @@ export function HistoryScreen({ historyEvents, character, attributeProgress, onC
                         delta={deltaLines.length > 0 ? deltaLines.join(' · ') : undefined}
                         deltaColor={deltaColor(deltaLines)}
                         notes={noteLines.length > 0 ? noteLines : undefined}
+                        action={action}
                       />
                     )
                   })}

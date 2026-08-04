@@ -20,6 +20,7 @@ import {
   fetchPendingRewards,
   fetchTodayOccurrences,
   processExpiredMissions,
+  recoverMission,
   resolvePendingRewards,
   todayLocalDateString,
   unlockAchievements,
@@ -546,6 +547,27 @@ export function Dashboard({ userId }: DashboardProps) {
     setEditingMission(null)
   }
 
+  /** Deshace un `handleDelete` desde el Historial (HistoryScreen). A diferencia de handleDelete,
+   * no usa `setLoadState` en el catch: un fallo aquí (p.ej. otra pestaña ya la recuperó) se
+   * muestra inline junto al botón "Recuperar" en vez de tumbar toda la pantalla, así que se
+   * relanza el error para que HistoryScreen lo capture y lo pinte donde ocurrió.
+   *
+   * Si es una Rutina, `routineStreaks` (calculado una sola vez al cargar, línea ~281) no tiene
+   * entrada para esta misión porque no existía como activa en esa carga — sin este paso, el badge
+   * de racha caería a 0 (MissionList.tsx: `routineStreaks[mission.id] ?? 0`) aunque
+   * mission_occurrence siga con los días completados intactos. Se recalcula igual que en la carga
+   * inicial, con el mismo computeRoutineStreak, para que el badge muestre la racha real sin
+   * necesidad de recargar la página. */
+  async function handleRecoverMission(missionId: string): Promise<void> {
+    const recovered = await recoverMission(missionId)
+    setMissions((prev) => (prev.some((m) => m.id === recovered.id) ? prev : [...prev, recovered]))
+
+    if (recovered.type === 'routine') {
+      const streak = await computeRoutineStreak(recovered.id)
+      setRoutineStreaks((prev) => ({ ...prev, [recovered.id]: streak }))
+    }
+  }
+
   function handleEdit(mission: MissionRow) {
     // Igual que handleDelete: no se edita una misión con una confirmación de hoy todavía en el
     // margen de deshacer (MissionCard ya oculta el botón mientras tanto, esto es la defensa extra).
@@ -1026,6 +1048,8 @@ export function Dashboard({ userId }: DashboardProps) {
             historyEvents={historyEvents}
             character={character}
             attributeProgress={gameState.attributeProgress}
+            activeMissions={missions}
+            onRecoverMission={handleRecoverMission}
             onClose={() => setActiveOverlay(null)}
           />
         </section>

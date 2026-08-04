@@ -736,6 +736,37 @@ export async function updateMission(
   return data as MissionRow
 }
 
+/**
+ * Deshace un `deleteMission`: repone `status: 'active'` y limpia `resolved_at`. `.eq('status',
+ * 'deleted')` evita recuperar una misión que ya no está en ese estado (p.ej. otra pestaña ya la
+ * recuperó entre que se pintó el botón "Recuperar" y que se pulsó); si eso ocurre, `.single()` no
+ * devuelve fila y se lanza un error legible en vez del genérico de PostgREST — mismo patrón que
+ * updateMission.
+ *
+ * No registra ningún history_event (igual que updateMission: es una corrección administrativa,
+ * no un evento de juego) y no toca mission_occurrence — si la misión es una Rutina, el siguiente
+ * processExpiredMissions recalculará con normalidad los días vencidos desde que volvió a estar
+ * activa, por diseño.
+ */
+export async function recoverMission(missionId: string): Promise<MissionRow> {
+  const { data, error } = await supabase
+    .from('mission')
+    .update({ status: 'active', resolved_at: null })
+    .eq('id', missionId)
+    .eq('status', 'deleted')
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === NO_ROW_RETURNED_ERRCODE) {
+      throw new Error('Esta misión ya no se puede recuperar.')
+    }
+    throw error
+  }
+
+  return data as MissionRow
+}
+
 export interface CompletionOutcome {
   character: CharacterRow
   attributeProgress: AttributeProgressRow[]
